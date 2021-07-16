@@ -1,0 +1,21 @@
+[package]
+name = "oasis-cbor-derive"
+description = "Procedural macros for oasis-cbor."
+version = "0.1.0"
+authors = ["Oasis Protocol Foundation <info@oasisprotocol.org>"]
+edition = "2018"
+license = "Apache-2.0"
+repository = "https://github.com/oasisprotocol/oasis-cbor"
+keywords = ["cbor", "serialization"]
+categories = ["encoding"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+darling = "0.13.0"
+proc-macro2 = "1.0.27"
+quote = "1.0.9"
+syn = "1.0.73"
+sk-cbor = "0.1.2"
+proc-macro-crate = "1.0.0"
