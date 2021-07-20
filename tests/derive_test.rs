@@ -92,6 +92,16 @@ enum AlwaysEncodesAsMap {
     },
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum NonStringKeys {
+    #[cbor(rename = 1)]
+    One(u64, u64),
+    #[cbor(rename = 2)]
+    Two,
+    #[cbor(rename = 3)]
+    Three { foo: u64 },
+}
+
 #[test]
 fn test_round_trip_complex() {
     let a = A {
@@ -295,7 +305,7 @@ fn test_transparent() {
 #[test]
 fn test_missing_field() {
     let b_without_bytes = vec![
-        //
+        // {"foo": 10}
         0xA1, // map(1)
         0x63, // text(3)
         0x66, 0x6F, 0x6F, // "foo"
@@ -308,7 +318,7 @@ fn test_missing_field() {
 #[test]
 fn test_invalid_type() {
     let b_invalid_type = vec![
-        //
+        // {"foo": "boom"}
         0xA1, // map(1)
         0x63, // text(3)
         0x66, 0x6F, 0x6F, // "foo"
@@ -480,4 +490,24 @@ fn test_tuples() {
 
     let dec: (u64, String, u64, u128) = cbor::from_slice(&enc).unwrap();
     assert_eq!(dec, t1, "serialization should round-trip");
+}
+
+#[test]
+fn test_non_string_keys() {
+    let nsk = NonStringKeys::One(10, 20);
+    let enc = cbor::to_vec(nsk.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {1: [10, 20]}
+            0xA1, // map(1)
+            0x01, // unsigned(1)
+            0x82, // array(2)
+            0x0A, // unsigned(10)
+            0x14, // unsigned(20)
+        ]
+    );
+
+    let dec: NonStringKeys = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, nsk, "serialization should round-trip");
 }
