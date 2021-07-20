@@ -56,9 +56,7 @@ struct NonTransparent(u64);
 
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct WithOptionalDefault {
-    #[cbor(optional)]
-    #[cbor(default)]
-    #[cbor(skip_serializing_if = "String::is_empty")]
+    #[cbor(optional, default, skip_serializing_if = "String::is_empty")]
     bar: String,
 }
 

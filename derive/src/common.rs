@@ -3,7 +3,7 @@ use darling::{util::Flag, FromDeriveInput, FromField, FromVariant};
 use proc_macro2::TokenStream;
 use quote::quote;
 use sk_cbor::values::IntoCborValue;
-use syn::{Expr, ExprPath, Generics, Ident, Type};
+use syn::{Expr, Path, Generics, Ident, Type};
 
 #[derive(FromDeriveInput)]
 #[darling(supports(any), attributes(cbor))]
@@ -39,7 +39,7 @@ pub struct Field {
     pub default: Flag,
 
     #[darling(default, rename = "skip_serializing_if")]
-    pub skip_serializing_if: Option<String>,
+    pub skip_serializing_if: Option<Path>,
 }
 
 impl Field {
@@ -55,12 +55,6 @@ impl Field {
         let key = self.ident.as_ref().unwrap().to_string();
         let key = self.rename.as_ref().unwrap_or(&key);
         key.clone().into_cbor_value()
-    }
-
-    pub fn skip_serializing_if_expr(&self) -> Option<Result<ExprPath, syn::Error>> {
-        self.skip_serializing_if
-            .as_ref()
-            .map(|s| syn::parse_str(&s))
     }
 }
 
