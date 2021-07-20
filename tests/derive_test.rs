@@ -56,9 +56,7 @@ struct NonTransparent(u64);
 
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct WithOptionalDefault {
-    #[cbor(optional)]
-    #[cbor(default)]
-    #[cbor(skip_serializing_if = "String::is_empty")]
+    #[cbor(optional, default, skip_serializing_if = "String::is_empty")]
     bar: String,
 }
 
@@ -92,6 +90,16 @@ enum AlwaysEncodesAsMap {
         bar: String,
         nested: B,
     },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum NonStringKeys {
+    #[cbor(rename = 1)]
+    One(u64, u64),
+    #[cbor(rename = 2)]
+    Two,
+    #[cbor(rename = 3)]
+    Three { foo: u64 },
 }
 
 #[test]
@@ -297,7 +305,7 @@ fn test_transparent() {
 #[test]
 fn test_missing_field() {
     let b_without_bytes = vec![
-        //
+        // {"foo": 10}
         0xA1, // map(1)
         0x63, // text(3)
         0x66, 0x6F, 0x6F, // "foo"
@@ -310,7 +318,7 @@ fn test_missing_field() {
 #[test]
 fn test_invalid_type() {
     let b_invalid_type = vec![
-        //
+        // {"foo": "boom"}
         0xA1, // map(1)
         0x63, // text(3)
         0x66, 0x6F, 0x6F, // "foo"
@@ -336,6 +344,63 @@ fn test_field_reorder() {
     ];
     let res: Result<B, _> = cbor::from_slice(&b_reorder);
     assert!(matches!(res, Err(cbor::DecodeError::ParsingFailed)));
+}
+
+#[test]
+fn test_extra_fields() {
+    // Extra field at the end.
+    let b_extra = vec![
+        // {"foo": 10, "bytes": h'00', "bytesextra": true}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+        0x6A, // text(10)
+        0x62, 0x79, 0x74, 0x65, 0x73, 0x65, 0x78, 0x74, 0x72, 0x61, // "bytesextra"
+        0xF5, // primitive(21)
+    ];
+    let res: Result<B, _> = cbor::from_slice(&b_extra);
+    assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
+
+    // Extra field in the middle.
+    let b_extra = vec![
+        // {"foo": 10, "fop": 10, "bytes": h'00'}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x63, // text(3)
+        0x66, 0x6F, 0x70, // "fop"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+    ];
+    let res: Result<B, _> = cbor::from_slice(&b_extra);
+    assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
+
+    // Extra field at the start.
+    let b_extra = vec![
+        // {"fon": 10, "foo": 10, "bytes": h'00'}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6E, // "fon"
+        0x0A, // unsigned(10)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+    ];
+    let res: Result<B, _> = cbor::from_slice(&b_extra);
+    assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
 }
 
 #[test]
@@ -482,4 +547,24 @@ fn test_tuples() {
 
     let dec: (u64, String, u64, u128) = cbor::from_slice(&enc).unwrap();
     assert_eq!(dec, t1, "serialization should round-trip");
+}
+
+#[test]
+fn test_non_string_keys() {
+    let nsk = NonStringKeys::One(10, 20);
+    let enc = cbor::to_vec(nsk.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {1: [10, 20]}
+            0xA1, // map(1)
+            0x01, // unsigned(1)
+            0x82, // array(2)
+            0x0A, // unsigned(10)
+            0x14, // unsigned(20)
+        ]
+    );
+
+    let dec: NonStringKeys = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, nsk, "serialization should round-trip");
 }

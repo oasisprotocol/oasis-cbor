@@ -153,7 +153,7 @@ fn derive_struct(
                     if field.optional.is_some() {
                         // If the field is optional then we can omit it when it is equal to the
                         // null value.
-                        match field.skip_serializing_if_expr() {
+                        match &field.skip_serializing_if {
                             None => {
                                 quote! {
                                     let fv = #field_value;
@@ -162,20 +162,12 @@ fn derive_struct(
                                     }
                                 }
                             }
-                            Some(Ok(skip_serializing_if)) => {
+                            Some(skip_serializing_if) => {
                                 quote! {
                                     if !#skip_serializing_if(&#field_binding) {
                                         fields.push((#key, #field_value));
                                     }
                                 }
-                            }
-                            Some(Err(err)) => {
-                                field.ident
-                                    .span()
-                                    .unwrap()
-                                    .error(format!("cannot parse skip_serializing_if attribute: {}", err))
-                                    .emit();
-                                return quote!({});
                             }
                         }
                     } else {
