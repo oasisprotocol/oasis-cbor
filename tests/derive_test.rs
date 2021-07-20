@@ -347,6 +347,63 @@ fn test_field_reorder() {
 }
 
 #[test]
+fn test_extra_fields() {
+    // Extra field at the end.
+    let b_extra = vec![
+        // {"foo": 10, "bytes": h'00', "bytesextra": true}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+        0x6A, // text(10)
+        0x62, 0x79, 0x74, 0x65, 0x73, 0x65, 0x78, 0x74, 0x72, 0x61, // "bytesextra"
+        0xF5, // primitive(21)
+    ];
+    let res: Result<B, _> = cbor::from_slice(&b_extra);
+    assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
+
+    // Extra field in the middle.
+    let b_extra = vec![
+        // {"foo": 10, "fop": 10, "bytes": h'00'}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x63, // text(3)
+        0x66, 0x6F, 0x70, // "fop"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+    ];
+    let res: Result<B, _> = cbor::from_slice(&b_extra);
+    assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
+
+    // Extra field at the start.
+    let b_extra = vec![
+        // {"fon": 10, "foo": 10, "bytes": h'00'}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6E, // "fon"
+        0x0A, // unsigned(10)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+    ];
+    let res: Result<B, _> = cbor::from_slice(&b_extra);
+    assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
+}
+
+#[test]
 fn test_bigint() {
     let tcs = vec![
         // NOTE: Test cases from Oasis Core (go/common/quantity/quantity_test.go).
