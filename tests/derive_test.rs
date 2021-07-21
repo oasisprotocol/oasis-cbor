@@ -111,6 +111,17 @@ struct Order {
     thirdd: u64,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum OrderEnum {
+    Foo {
+        second: u64,
+        #[cbor(optional)]
+        #[cbor(skip_serializing_if = "String::is_empty")]
+        first: String,
+        thirdd: bool,
+    },
+}
+
 #[test]
 fn test_round_trip_complex() {
     let a = A {
@@ -591,5 +602,14 @@ fn test_order_value() {
         _ => panic!("should encode to map"),
     }
     let dec: Order = cbor::from_value(enc).expect("serialization should round-trip");
+    assert_eq!(dec, ord, "serialization should round-trip");
+
+    let ord = OrderEnum::Foo {
+        second: 42,
+        first: "test".to_string(),
+        thirdd: true,
+    };
+    let enc = cbor::to_value(ord.clone());
+    let dec: OrderEnum = cbor::from_value(enc).expect("serialization should round-trip");
     assert_eq!(dec, ord, "serialization should round-trip");
 }
