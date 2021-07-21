@@ -100,6 +100,13 @@ fn derive_struct(
         // Process all fields and encode the structure as a map or array.
         let as_array = fields.is_tuple() || fields.is_newtype() || as_array;
 
+        // Sort fields by their CBOR keys. This makes sure that fields are ordered correctly even
+        // when encoded into intermediate cbor::Value types (since writer also sorts).
+        let mut fields = fields.fields;
+        if !as_array {
+            fields.sort_by(|a, b| a.to_cbor_key().partial_cmp(&b.to_cbor_key()).unwrap());
+        }
+
         let field_map_items: Vec<_> = fields
             .iter()
             .enumerate()

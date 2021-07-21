@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use std::collections::{BTreeMap, HashMap};
 
 use oasis_cbor as cbor;
@@ -100,6 +102,13 @@ enum NonStringKeys {
     Two,
     #[cbor(rename = 3)]
     Three { foo: u64 },
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct Order {
+    second: u64,
+    first: u64,
+    thirdd: u64,
 }
 
 #[test]
@@ -567,4 +576,20 @@ fn test_non_string_keys() {
 
     let dec: NonStringKeys = cbor::from_slice(&enc).expect("serialization should round-trip");
     assert_eq!(dec, nsk, "serialization should round-trip");
+}
+
+#[test]
+fn test_order_value() {
+    let ord = Order::default();
+    let enc = cbor::to_value(ord.clone());
+    match enc {
+        cbor::Value::Map(ref pairs) => {
+            assert_eq!(pairs[0].0, cbor::cbor_text!("first"));
+            assert_eq!(pairs[1].0, cbor::cbor_text!("second"));
+            assert_eq!(pairs[2].0, cbor::cbor_text!("thirdd"));
+        }
+        _ => panic!("should encode to map"),
+    }
+    let dec: Order = cbor::from_value(enc).expect("serialization should round-trip");
+    assert_eq!(dec, ord, "serialization should round-trip");
 }
