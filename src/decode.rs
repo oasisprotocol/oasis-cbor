@@ -203,6 +203,7 @@ impl Decode for () {
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Simple(SimpleValue::NullValue) => Ok(()),
+            Value::Simple(SimpleValue::Undefined) => Ok(()),
             _ => Err(DecodeError::UnexpectedType),
         }
     }
