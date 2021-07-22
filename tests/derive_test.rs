@@ -613,3 +613,12 @@ fn test_order_value() {
     let dec: OrderEnum = cbor::from_value(enc).expect("serialization should round-trip");
     assert_eq!(dec, ord, "serialization should round-trip");
 }
+
+#[test]
+fn test_unit_encode_decode() {
+    let data = vec![0xf6]; // Null.
+    let _dec: () = cbor::from_slice(&data).expect("unit type can be decoded from CBOR null");
+
+    let data = vec![0xf7]; // Undefined.
+    let _dec: () = cbor::from_slice(&data).expect("unit type can be decoded from CBOR undefined");
+}
