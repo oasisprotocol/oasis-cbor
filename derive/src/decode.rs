@@ -55,7 +55,8 @@ fn derive_struct(
     if transparent {
         // Transparently forward the implementation to the underlying type. This is only valid for
         // newtype structs.
-        quote_spanned!( ident.span() => Self(__cbor::Decode::try_from_cbor_value(value)?) )
+        let decode_fn = quote_spanned!(ident.span()=> __cbor::Decode::try_from_cbor_value);
+        quote!(Self(#decode_fn(value)?))
     } else {
         // Process all fields and decode the structure as a map or array.
         let as_array = fields.is_tuple() || fields.is_newtype() || as_array;
@@ -82,9 +83,10 @@ fn derive_struct(
                         }),
                     };
 
-                    let field_value = quote_spanned!( field_ty.span() =>
-                        __cbor::Decode::try_from_cbor_value(it.next().ok_or(__cbor::DecodeError::MissingField)?)?
-                    );
+                    let decode_fn =
+                        quote_spanned!(field_ty.span()=> __cbor::Decode::try_from_cbor_value);
+                    let field_value =
+                        quote!(#decode_fn(it.next().ok_or(__cbor::DecodeError::MissingField)?)?);
 
                     quote! { #field_ident: #field_value }
                 })
@@ -114,20 +116,24 @@ fn derive_struct(
                     let handle_missing_value = if field.optional.is_some() {
                         let default = if field.default.is_some() {
                             // Use the default value in case the value is not there.
-                            quote!( Ok(::std::default::Default::default()) )
+                            quote!(Ok(::std::default::Default::default()))
                         } else {
                             // Attempt decoding with null value.
-                            quote!( __cbor::Decode::try_from_cbor_value(__cbor::Value::Simple(__cbor::SimpleValue::NullValue)) )
+                            quote!(__cbor::Decode::try_from_cbor_value(__cbor::Value::Simple(
+                                __cbor::SimpleValue::NullValue
+                            )))
                         };
 
                         quote!( unwrap_or_else(|| #default) )
                     } else {
                         // Value is not optional, so it must be there.
-                        quote!( ok_or(__cbor::DecodeError::MissingField)? )
+                        quote!(ok_or(__cbor::DecodeError::MissingField)?)
                     };
 
+                    let destruct_fn = quote_spanned!(field_ty.span()=>
+                        __cbor::macros::destructure_cbor_map_peek_value_strict);
                     let field_value = quote!({
-                        let v: Option<__cbor::Value> = __cbor::macros::destructure_cbor_map_peek_value_strict(&mut it, #key)?;
+                        let v: Option<__cbor::Value> = #destruct_fn(&mut it, #key)?;
                         v.map(__cbor::Decode::try_from_cbor_value).#handle_missing_value?
                     });
 
@@ -188,7 +194,9 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
 
         let discriminant = match variant.discriminant {
             Some(ref expr) => {
-                quote_spanned!( variant.ident.span() => __cbor::Encode::into_cbor_value(#expr) )
+                let encoder_fn =
+                    quote_spanned!(variant.ident.span()=> __cbor::Encode::into_cbor_value);
+                quote!(#encoder_fn(#expr))
             }
             None => variant.to_cbor_key_expr(),
         };
@@ -203,29 +211,40 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     });
 
     // Generate decoders for all non-unit variants.
-    let non_unit_decoders: Vec<_> = variants.iter().filter_map(|variant| {
-        if variant.fields.is_unit() {
-            return None;
-        }
-
-        let variant_ident = &variant.ident;
-        let key = variant.to_cbor_key_expr();
-
-        let decoder = if variant.fields.is_newtype() {
-            // Newtype variants map the key directly to the inner value as if transparent was used.
-            quote_spanned!( variant.ident.span() => Self::#variant_ident(__cbor::Decode::try_from_cbor_value(value)?) )
-        } else {
-            // Derive inner decoder.
-            let inner = derive_struct(&variant.ident, false, variant.as_array.is_some(), variant.fields.as_ref(), quote!(Self::#variant_ident));
-            quote!({ #inner })
-        };
-
-        Some(quote! {
-            if key == #key {
-                return Ok(#decoder);
+    let non_unit_decoders: Vec<_> = variants
+        .iter()
+        .filter_map(|variant| {
+            if variant.fields.is_unit() {
+                return None;
             }
+
+            let variant_ident = &variant.ident;
+            let key = variant.to_cbor_key_expr();
+
+            let decoder = if variant.fields.is_newtype() {
+                // Newtype variants map the key directly to the inner value as if transparent was used.
+                let decode_fn =
+                    quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value);
+                quote!(Self::#variant_ident(#decode_fn(value)?))
+            } else {
+                // Derive inner decoder.
+                let inner = derive_struct(
+                    &variant.ident,
+                    false,
+                    variant.as_array.is_some(),
+                    variant.fields.as_ref(),
+                    quote!(Self::#variant_ident),
+                );
+                quote!({ #inner })
+            };
+
+            Some(quote! {
+                if key == #key {
+                    return Ok(#decoder);
+                }
+            })
         })
-    }).collect();
+        .collect();
 
     // In case there are no non-unit decoders, just omit the match.
     if non_unit_decoders.is_empty() {
