@@ -19,7 +19,13 @@ pub fn derive(input: DeriveInput) -> TokenStream {
     let dec_impl = match dec.data.as_ref() {
         darling::ast::Data::Enum(variants) => derive_enum(&dec, variants),
         darling::ast::Data::Struct(fields) => {
-            let inner = derive_struct(&dec.ident, dec.transparent.is_some(), dec.as_array.is_some(), fields, quote!(Self));
+            let inner = derive_struct(
+                &dec.ident,
+                dec.transparent.is_some(),
+                dec.as_array.is_some(),
+                fields,
+                quote!(Self),
+            );
             quote!(Ok({ #inner }))
         }
     };
@@ -120,10 +126,10 @@ fn derive_struct(
                         quote!( ok_or(__cbor::DecodeError::MissingField)? )
                     };
 
-                    let field_value = quote_spanned!( field_ty.span() => {
+                    let field_value = quote!({
                         let v: Option<__cbor::Value> = __cbor::macros::destructure_cbor_map_peek_value_strict(&mut it, #key)?;
                         v.map(__cbor::Decode::try_from_cbor_value).#handle_missing_value?
-                    } );
+                    });
 
                     quote! { #field_ident: #field_value }
                 })
