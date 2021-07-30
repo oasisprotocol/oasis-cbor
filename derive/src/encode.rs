@@ -32,9 +32,13 @@ pub fn derive(input: DeriveInput) -> TokenStream {
 
     let derived = match enc.data.as_ref() {
         darling::ast::Data::Enum(variants) => derive_enum(&enc, variants),
-        darling::ast::Data::Struct(fields) => {
-            derive_struct(&enc.ident, enc.transparent.is_some(), enc.as_array.is_some(), fields, None)
-        }
+        darling::ast::Data::Struct(fields) => derive_struct(
+            &enc.ident,
+            enc.transparent.is_some(),
+            enc.as_array.is_some(),
+            fields,
+            None,
+        ),
     };
 
     let enc_ty_ident = &enc.ident;
@@ -92,8 +96,10 @@ fn derive_struct(
             return DeriveResult::empty();
         }
 
+        let encode_fn = quote_spanned!(ident.span()=> __cbor::Encode::into_cbor_value);
+
         DeriveResult {
-            enc_impl: quote_spanned!( ident.span() => __cbor::Encode::into_cbor_value(self.0) ),
+            enc_impl: quote!(#encode_fn(self.0)),
             encode_as_map: false, // We cannot be sure that the inner type encodes as map.
         }
     } else {
@@ -108,7 +114,10 @@ fn derive_struct(
             field_bindings = field_bindings.map(|bindings| {
                 let mut field_bindings_idx: Vec<_> = bindings.iter().enumerate().collect();
                 field_bindings_idx.sort_by_key(|(i, _)| fields[*i].to_cbor_key());
-                field_bindings_idx.into_iter().map(|(_, f)| f.clone()).collect()
+                field_bindings_idx
+                    .into_iter()
+                    .map(|(_, f)| f.clone())
+                    .collect()
             });
             // Then sort the fields.
             fields.sort_by_key(|f| f.to_cbor_key());
@@ -120,7 +129,8 @@ fn derive_struct(
             .map(|(i, field)| {
                 // Perform early validation for option compatibility.
                 if field.optional.is_some() && as_array {
-                    field.ident
+                    field
+                        .ident
                         .span()
                         .unwrap()
                         .error("cannot use optional attribute in arrays".to_string())
@@ -145,10 +155,13 @@ fn derive_struct(
                         }),
                 };
 
+                let encode_fn = quote_spanned!(field_ty.span()=> __cbor::Encode::into_cbor_value);
+
                 if as_array {
                     // Output the fields as a CBOR array.
                     if field.skip_serializing_if.is_some() {
-                        field.ident
+                        field
+                            .ident
                             .span()
                             .unwrap()
                             .error("cannot use skip_serializing_if attribute in arrays".to_string())
@@ -156,13 +169,13 @@ fn derive_struct(
                         return quote!({});
                     }
 
-                    let field_value = quote_spanned!( field_ty.span() => __cbor::Encode::into_cbor_value(#field_binding) );
+                    let field_value = quote!(#encode_fn(#field_binding));
 
                     quote! { fields.push(#field_value); }
                 } else {
                     // Output the fields as a CBOR map.
                     let key = field.to_cbor_key_expr();
-                    let field_value = quote_spanned!( field_ty.span() => __cbor::Encode::into_cbor_value(#field_binding) );
+                    let field_value = quote!(#encode_fn(#field_binding) );
 
                     if field.optional.is_some() {
                         // If the field is optional then we can omit it when it is equal to the
@@ -240,63 +253,74 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
         }
     };
 
-    let (match_arms, maybe_encode_as_map): (Vec<_>, Vec<_>) = variants.iter().map(|variant| {
-        let variant_ident = &variant.ident;
-        let key = variant.to_cbor_key_expr();
+    let (match_arms, maybe_encode_as_map): (Vec<_>, Vec<_>) = variants
+        .iter()
+        .map(|variant| {
+            let variant_ident = &variant.ident;
+            let key = variant.to_cbor_key_expr();
 
-        if variant.fields.is_unit() {
-            // For unit variants, just return the CBOR-encoded key or the discriminant if any.
-            match variant.discriminant {
-                Some(ref expr) => {
-                    let inner =
-                        quote_spanned!( variant.ident.span() => __cbor::Encode::into_cbor_value(#expr) );
-                    (quote! { Self::#variant_ident => #inner, }, false)
+            let encode_fn = quote_spanned!(variant.ident.span()=> __cbor::Encode::into_cbor_value);
+
+            if variant.fields.is_unit() {
+                // For unit variants, just return the CBOR-encoded key or the discriminant if any.
+                match variant.discriminant {
+                    Some(ref expr) => {
+                        let inner = quote!(#encode_fn(#expr));
+                        (quote! { Self::#variant_ident => #inner, }, false)
+                    }
+                    None => (quote! { Self::#variant_ident => #key, }, false),
                 }
-                None => (quote! { Self::#variant_ident => #key, }, false),
-            }
-        } else {
-            // For others, encode as a map.
-            if variant.fields.is_newtype() {
-                // Newtype variants map the key directly to the inner value as if transparent was used.
-                let inner =
-                    quote_spanned!( variant.ident.span() => __cbor::Encode::into_cbor_value(inner) );
-                let wrapper = maybe_wrap_map(key, inner);
-
-                (quote! { Self::#variant_ident(inner) => #wrapper, }, true)
             } else {
-                // Generate field bindings as we need to destructure the enum variant.
-                let (bindings, idents): (Vec<_>, Vec<_>) = variant
-                    .fields
-                    .as_ref()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, field)| {
-                        let pat = match field.ident {
-                            Some(ref ident) => Member::Named(ident.clone()),
-                            None => Member::Unnamed(Index {
-                                index: i as u32,
-                                span: variant_ident.span(),
-                            }),
-                        };
-                        let ident = Ident::new(&format!("__a{}", i), variant_ident.span());
-                        let binding = quote!( #pat: #ident, );
+                // For others, encode as a map.
+                if variant.fields.is_newtype() {
+                    // Newtype variants map the key directly to the inner value as if transparent was used.
+                    let inner = quote!(#encode_fn(inner));
+                    let wrapper = maybe_wrap_map(key, inner);
 
-                        (binding, ident)
-                    })
-                    .unzip();
+                    (quote! { Self::#variant_ident(inner) => #wrapper, }, true)
+                } else {
+                    // Generate field bindings as we need to destructure the enum variant.
+                    let (bindings, idents): (Vec<_>, Vec<_>) = variant
+                        .fields
+                        .as_ref()
+                        .iter()
+                        .enumerate()
+                        .map(|(i, field)| {
+                            let pat = match field.ident {
+                                Some(ref ident) => Member::Named(ident.clone()),
+                                None => Member::Unnamed(Index {
+                                    index: i as u32,
+                                    span: variant_ident.span(),
+                                }),
+                            };
+                            let ident = Ident::new(&format!("__a{}", i), variant_ident.span());
+                            let binding = quote!( #pat: #ident, );
 
-                // Derive encoder and wrap it in a map.
-                let derived =
-                    derive_struct(&variant.ident, false, variant.as_array.is_some(), variant.fields.as_ref(), Some(idents));
-                let inner = derived.enc_impl;
-                let wrapper = maybe_wrap_map(key, quote!( {#inner} ));
+                            (binding, ident)
+                        })
+                        .unzip();
 
-                (quote! {
-                    Self::#variant_ident { #(#bindings)* } => #wrapper,
-                }, true)
+                    // Derive encoder and wrap it in a map.
+                    let derived = derive_struct(
+                        &variant.ident,
+                        false,
+                        variant.as_array.is_some(),
+                        variant.fields.as_ref(),
+                        Some(idents),
+                    );
+                    let inner = derived.enc_impl;
+                    let wrapper = maybe_wrap_map(key, quote!( {#inner} ));
+
+                    (
+                        quote! {
+                            Self::#variant_ident { #(#bindings)* } => #wrapper,
+                        },
+                        true,
+                    )
+                }
             }
-        }
-    }).unzip();
+        })
+        .unzip();
 
     // Check if all variants encode as a map.
     let all_encode_as_map = enc.untagged.is_none() && maybe_encode_as_map.iter().all(|x| *x);
