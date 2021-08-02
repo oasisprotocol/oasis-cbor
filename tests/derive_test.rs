@@ -622,3 +622,37 @@ fn test_unit_encode_decode() {
     let data = vec![0xf7]; // Undefined.
     let _dec: () = cbor::from_slice(&data).expect("unit type can be decoded from CBOR undefined");
 }
+
+#[test]
+fn test_arrays() {
+    let a: [u64; 3] = [1, 2, 3];
+    let enc = cbor::to_vec(a.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // [1, 2, 3]
+            0x83, // array(3)
+            0x01, // unsigned(1)
+            0x02, // unsigned(2)
+            0x03, // unsigned(3)
+        ]
+    );
+    let dec: [u64; 3] = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, a, "serialization should round-trip");
+
+    let a: [String; 2] = ["foo".to_string(), "bar".to_string()];
+    let enc = cbor::to_vec(a.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // ["foo", "bar"]
+            0x82, // array(2)
+            0x63, // text(3)
+            0x66, 0x6F, 0x6F, // "foo"
+            0x63, // text(3)
+            0x62, 0x61, 0x72, // "bar"
+        ]
+    );
+    let dec: [String; 2] = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, a, "serialization should round-trip");
+}
