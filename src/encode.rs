@@ -122,6 +122,16 @@ impl Encode for Vec<u8> {
     }
 }
 
+impl<T: Encode, const N: usize> Encode for [T; N] {
+    fn into_cbor_value(self) -> Value {
+        Value::Array(
+            IntoIterator::into_iter(self)
+                .map(Encode::into_cbor_value)
+                .collect(),
+        )
+    }
+}
+
 impl<T: Encode> Encode for Option<T> {
     fn into_cbor_value(self) -> Value {
         match self {
