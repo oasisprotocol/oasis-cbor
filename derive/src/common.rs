@@ -78,6 +78,9 @@ pub struct Field {
     #[darling(default, rename = "default")]
     pub default: Flag,
 
+    #[darling(default, rename = "skip")]
+    pub skip: Flag,
+
     #[darling(default, rename = "skip_serializing_if")]
     pub skip_serializing_if: Option<Path>,
 }
@@ -112,6 +115,9 @@ pub struct Variant {
 
     #[darling(default, rename = "as_array")]
     pub as_array: Flag,
+
+    #[darling(default, rename = "skip")]
+    pub skip: Flag,
 }
 
 impl Variant {

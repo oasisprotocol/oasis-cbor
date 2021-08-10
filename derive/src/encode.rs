@@ -138,6 +138,11 @@ fn derive_struct(
                     return quote!({});
                 }
 
+                if field.skip.is_some() {
+                    // Skip serializing this field.
+                    return quote!();
+                }
+
                 let field_ty = &field.ty;
 
                 let field_binding = match field_bindings {
@@ -260,6 +265,11 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
             let key = variant.to_cbor_key_expr();
 
             let encode_fn = quote_spanned!(variant.ident.span()=> __cbor::Encode::into_cbor_value);
+
+            if variant.skip.is_some() {
+                // If we need to skip serializing this variant, serialize into undefined.
+                return (quote! { Self::#variant_ident { .. } => __cbor::Value::Simple(__cbor::SimpleValue::Undefined), }, true);
+            }
 
             if variant.fields.is_unit() {
                 // For unit variants, just return the CBOR-encoded key or the discriminant if any.
