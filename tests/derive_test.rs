@@ -122,6 +122,17 @@ enum OrderEnum {
     },
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum SkipVariantsAndFields {
+    First {
+        foo: u64,
+        #[cbor(skip)]
+        bar: u64,
+    },
+    #[cbor(skip)]
+    Second { a: u64 },
+}
+
 #[test]
 fn test_round_trip_complex() {
     let a = A {
@@ -655,4 +666,51 @@ fn test_arrays() {
     );
     let dec: [String; 2] = cbor::from_slice(&enc).expect("serialization should round-trip");
     assert_eq!(dec, a, "serialization should round-trip");
+}
+
+#[test]
+fn test_skip_field() {
+    let sk = SkipVariantsAndFields::First { foo: 10, bar: 20 };
+    let enc = cbor::to_vec(sk.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {"First": {"foo": 10}}
+            0xA1, // map(1)
+            0x65, // text(5)
+            0x46, 0x69, 0x72, 0x73, 0x74, // "First"
+            0xA1, // map(1)
+            0x63, // text(3)
+            0x66, 0x6F, 0x6F, // "foo"
+            0x0A, // unsigned(10)
+        ],
+    );
+    let dec: SkipVariantsAndFields = cbor::from_slice(&enc).expect("deserialization should work");
+    let expected = SkipVariantsAndFields::First {
+        foo: 10,
+        bar: 0, // Should be replaced with default value.
+    };
+    assert_eq!(dec, expected, "deserialization should work");
+}
+
+#[test]
+fn test_skip_variant() {
+    let skv_data = vec![
+        // {"Second": {"a": 10}}
+        0xA1, // map(1)
+        0x66, // text(6)
+        0x53, 0x65, 0x63, 0x6F, 0x6E, 0x64, // "Second"
+        0xA1, // map(1)
+        0x61, // text(1)
+        0x61, // "a"
+        0x0A, // unsigned(10)
+    ];
+    let result = cbor::from_slice::<SkipVariantsAndFields>(&skv_data)
+        .expect_err("deserialization of skipped variant should fail");
+    assert!(matches!(result, cbor::DecodeError::UnknownField));
+
+    // Serialization of an unserializable variant should result in undefined.
+    let sk = SkipVariantsAndFields::Second { a: 10 };
+    let enc = cbor::to_vec(sk.clone());
+    assert_eq!(enc, vec![247]);
 }

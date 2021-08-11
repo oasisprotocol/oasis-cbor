@@ -83,10 +83,14 @@ fn derive_struct(
                         }),
                     };
 
-                    let decode_fn =
-                        quote_spanned!(field_ty.span()=> __cbor::Decode::try_from_cbor_value);
-                    let field_value =
-                        quote!(#decode_fn(it.next().ok_or(__cbor::DecodeError::MissingField)?)?);
+                    let field_value = if field.skip.is_some() {
+                        // If the field should be skipped, always use Default::default() as value.
+                        quote_spanned!(field_ty.span()=> ::std::default::Default::default())
+                    } else {
+                        let decode_fn =
+                            quote_spanned!(field_ty.span()=> __cbor::Decode::try_from_cbor_value);
+                        quote!(#decode_fn(it.next().ok_or(__cbor::DecodeError::MissingField)?)?)
+                    };
 
                     quote! { #field_ident: #field_value }
                 })
@@ -113,29 +117,36 @@ fn derive_struct(
                     let field_ty = &field.ty;
                     let key = field.to_cbor_key_expr();
 
-                    let handle_missing_value = if field.optional.is_some() {
-                        let default = if field.default.is_some() {
-                            // Use the default value in case the value is not there.
-                            quote!(Ok(::std::default::Default::default()))
+                    let field_value = if field.skip.is_some() {
+                        // If the field should be skipped, always use Default::default() as value.
+                        quote_spanned!(field_ty.span()=> ::std::default::Default::default())
+                    } else {
+                        let handle_missing_value = if field.optional.is_some() {
+                            let default = if field.default.is_some() {
+                                // Use the default value in case the value is not there.
+                                quote!(Ok(::std::default::Default::default()))
+                            } else {
+                                // Attempt decoding with null value.
+                                quote!(__cbor::Decode::try_from_cbor_value(__cbor::Value::Simple(
+                                    __cbor::SimpleValue::NullValue
+                                )))
+                            };
+
+                            quote!( unwrap_or_else(|| #default) )
                         } else {
-                            // Attempt decoding with null value.
-                            quote!(__cbor::Decode::try_from_cbor_value(__cbor::Value::Simple(
-                                __cbor::SimpleValue::NullValue
-                            )))
+                            // Value is not optional, so it must be there.
+                            quote!(ok_or(__cbor::DecodeError::MissingField)?)
                         };
 
-                        quote!( unwrap_or_else(|| #default) )
-                    } else {
-                        // Value is not optional, so it must be there.
-                        quote!(ok_or(__cbor::DecodeError::MissingField)?)
-                    };
+                        let destruct_fn = quote_spanned!(field_ty.span()=>
+                            __cbor::macros::destructure_cbor_map_peek_value_strict);
+                        let field_value = quote!({
+                            let v: Option<__cbor::Value> = #destruct_fn(&mut it, #key)?;
+                            v.map(__cbor::Decode::try_from_cbor_value).#handle_missing_value?
+                        });
 
-                    let destruct_fn = quote_spanned!(field_ty.span()=>
-                        __cbor::macros::destructure_cbor_map_peek_value_strict);
-                    let field_value = quote!({
-                        let v: Option<__cbor::Value> = #destruct_fn(&mut it, #key)?;
-                        v.map(__cbor::Decode::try_from_cbor_value).#handle_missing_value?
-                    });
+                        field_value
+                    };
 
                     quote! { #field_ident: #field_value }
                 })
@@ -191,6 +202,9 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
         if !variant.fields.is_unit() {
             return None;
         }
+        if variant.skip.is_some() {
+            return None;
+        }
 
         let discriminant = match variant.discriminant {
             Some(ref expr) => {
@@ -215,6 +229,9 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
         .iter()
         .filter_map(|variant| {
             if variant.fields.is_unit() {
+                return None;
+            }
+            if variant.skip.is_some() {
                 return None;
             }
 
