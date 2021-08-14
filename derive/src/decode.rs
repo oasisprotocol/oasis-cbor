@@ -199,7 +199,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
 
     // Generate decoders for all unit variants.
     let unit_decoders = variants.iter().filter_map(|variant| {
-        if !variant.fields.is_unit() {
+        if !variant.fields.is_unit() || variant.as_struct.is_some() {
             return None;
         }
         if variant.skip.is_some() {
@@ -228,7 +228,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     let non_unit_decoders: Vec<_> = variants
         .iter()
         .filter_map(|variant| {
-            if variant.fields.is_unit() {
+            if variant.fields.is_unit() && !variant.as_struct.is_some() {
                 return None;
             }
             if variant.skip.is_some() {

@@ -116,6 +116,9 @@ pub struct Variant {
     #[darling(default, rename = "as_array")]
     pub as_array: Flag,
 
+    #[darling(default, rename = "as_struct")]
+    pub as_struct: Flag,
+
     #[darling(default, rename = "skip")]
     pub skip: Flag,
 }

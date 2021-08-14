@@ -133,6 +133,14 @@ enum SkipVariantsAndFields {
     Second { a: u64 },
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum UnitEnumVariantAsStruct {
+    #[cbor(rename = "one", as_struct)]
+    One,
+    #[cbor(rename = "two")]
+    Two {},
+}
+
 #[test]
 fn test_round_trip_complex() {
     let a = A {
@@ -713,4 +721,23 @@ fn test_skip_variant() {
     let sk = SkipVariantsAndFields::Second { a: 10 };
     let enc = cbor::to_vec(sk.clone());
     assert_eq!(enc, vec![247]);
+}
+
+#[test]
+fn test_unit_variant_as_struct() {
+    let uv = UnitEnumVariantAsStruct::One;
+    let enc = cbor::to_vec(uv.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {"one": {}}
+            0xA1, // map(1)
+            0x63, // text(3)
+            0x6F, 0x6E, 0x65, // "one"
+            0xA0, // map(0)
+        ],
+    );
+    let dec: UnitEnumVariantAsStruct =
+        cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, uv, "serialization should round-trip");
 }
