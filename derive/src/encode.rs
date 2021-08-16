@@ -36,6 +36,7 @@ pub fn derive(input: DeriveInput) -> TokenStream {
             &enc.ident,
             enc.transparent.is_some(),
             enc.as_array.is_some(),
+            false,
             fields,
             None,
         ),
@@ -74,10 +75,11 @@ fn derive_struct(
     ident: &Ident,
     transparent: bool,
     as_array: bool,
+    unit_as_struct: bool,
     fields: darling::ast::Fields<&Field>,
     mut field_bindings: Option<Vec<Ident>>,
 ) -> DeriveResult {
-    if fields.is_unit() {
+    if fields.is_unit() && !unit_as_struct {
         return DeriveResult {
             enc_impl: quote! { __cbor::Value::Simple(__cbor::SimpleValue::NullValue) },
             encode_as_map: false,
@@ -271,7 +273,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                 return (quote! { Self::#variant_ident { .. } => __cbor::Value::Simple(__cbor::SimpleValue::Undefined), }, true);
             }
 
-            if variant.fields.is_unit() {
+            if variant.fields.is_unit() && !variant.as_struct.is_some() {
                 // For unit variants, just return the CBOR-encoded key or the discriminant if any.
                 match variant.discriminant {
                     Some(ref expr) => {
@@ -315,6 +317,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                         &variant.ident,
                         false,
                         variant.as_array.is_some(),
+                        variant.as_struct.is_some(),
                         variant.fields.as_ref(),
                         Some(idents),
                     );
