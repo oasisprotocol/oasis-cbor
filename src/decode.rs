@@ -137,7 +137,7 @@ impl Decode for Vec<u8> {
 }
 
 impl<T: Decode, const N: usize> Decode for [T; N] {
-    fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
+    default fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Array(v) => v
                 .into_iter()
@@ -145,6 +145,15 @@ impl<T: Decode, const N: usize> Decode for [T; N] {
                 .collect::<Result<Vec<_>, _>>()?
                 .try_into()
                 .map_err(|_| DecodeError::UnexpectedType),
+            _ => Err(DecodeError::UnexpectedType),
+        }
+    }
+}
+
+impl<const N: usize> Decode for [u8; N] {
+    fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
+        match value {
+            Value::ByteString(v) => v.try_into().map_err(|_| DecodeError::UnexpectedType),
             _ => Err(DecodeError::UnexpectedType),
         }
     }

@@ -677,6 +677,38 @@ fn test_arrays() {
 }
 
 #[test]
+fn test_bytes() {
+    let a: Vec<u8> = vec![1, 2, 3];
+    let enc = cbor::to_vec(a.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // h'010203'
+            0x43, // bytes(3)
+            0x01, 0x02, 0x03 // "\x01\x02\x03"
+        ]
+    );
+    let dec: Vec<u8> = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, a, "serialization should round-trip");
+
+    let a: [u8; 3] = [1, 2, 3];
+    let enc = cbor::to_vec(a.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // h'010203'
+            0x43, // bytes(3)
+            0x01, 0x02, 0x03 // "\x01\x02\x03"
+        ]
+    );
+    let dec: [u8; 3] = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, a, "serialization should round-trip");
+
+    let result = cbor::from_slice::<[u8; 2]>(&enc).expect_err("serialization should fail");
+    assert!(matches!(result, cbor::DecodeError::UnexpectedType));
+}
+
+#[test]
 fn test_skip_field() {
     let sk = SkipVariantsAndFields::First { foo: 10, bar: 20 };
     let enc = cbor::to_vec(sk.clone());

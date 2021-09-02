@@ -123,12 +123,18 @@ impl Encode for Vec<u8> {
 }
 
 impl<T: Encode, const N: usize> Encode for [T; N] {
-    fn into_cbor_value(self) -> Value {
+    default fn into_cbor_value(self) -> Value {
         Value::Array(
             IntoIterator::into_iter(self)
                 .map(Encode::into_cbor_value)
                 .collect(),
         )
+    }
+}
+
+impl<const N: usize> Encode for [u8; N] {
+    fn into_cbor_value(self) -> Value {
+        Value::ByteString(self.into())
     }
 }
 
