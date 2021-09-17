@@ -273,6 +273,16 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                 return (quote! { Self::#variant_ident { .. } => __cbor::Value::Simple(__cbor::SimpleValue::Undefined), }, true);
             }
 
+            if variant.embed.is_some() {
+                // If we need to embed this variant, just serialize the embedded enum directly.
+                if !variant.fields.is_newtype() {
+                    variant.ident.span().unwrap().error("cannot use embed attribute on non-newtype variant".to_string()).emit();
+                    return (quote!(), false);
+                }
+                // TODO: It would be great if this somehow ensured that there was no overlap etc.
+                return (quote! { Self::#variant_ident(inner) => #encode_fn(inner), }, true);
+            }
+
             if variant.fields.is_unit() && !variant.as_struct.is_some() {
                 // For unit variants, just return the CBOR-encoded key or the discriminant if any.
                 match variant.discriminant {
