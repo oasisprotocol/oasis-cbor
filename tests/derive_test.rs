@@ -141,6 +141,22 @@ enum UnitEnumVariantAsStruct {
     Two {},
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum EmbedParent {
+    A(String),
+    #[cbor(embed)]
+    B(EmbedChild),
+    C(u64),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+enum EmbedChild {
+    D(String),
+    E(u64),
+    // Overlapping field. The parent one should take precedence.
+    C(String),
+}
+
 #[test]
 fn test_round_trip_complex() {
     let a = A {
@@ -772,4 +788,56 @@ fn test_unit_variant_as_struct() {
     let dec: UnitEnumVariantAsStruct =
         cbor::from_slice(&enc).expect("serialization should round-trip");
     assert_eq!(dec, uv, "serialization should round-trip");
+}
+
+#[test]
+fn test_embed_variant() {
+    let ep = EmbedParent::B(EmbedChild::E(42));
+    let enc = cbor::to_vec(ep.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {"E": 42}
+            0xA1, // map(1)
+            0x61, // text(1)
+            0x45, // "E"
+            0x18, 0x2A, // unsigned(42)
+        ],
+    );
+    let dec: EmbedParent = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, ep, "serialization should round-trip");
+
+    // When there's an overlapping field, the parent field is always used when decoding.
+    let ep = EmbedParent::C(42);
+    let enc = cbor::to_vec(ep.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {"C": 42}
+            0xA1, // map(1)
+            0x61, // text(1)
+            0x43, // "C"
+            0x18, 0x2A, // unsigned(42)
+        ],
+    );
+    let dec: EmbedParent = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, ep, "serialization should round-trip");
+
+    // Using the child field that overlaps will not round-trip.
+    let ep = EmbedParent::B(EmbedChild::C("foo".to_string()));
+    let enc = cbor::to_vec(ep.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {"C": "foo"}
+            0xA1, // map(1)
+            0x61, // text(1)
+            0x43, // "C"
+            0x63, // text(3)
+            0x66, 0x6F, 0x6F, // "foo"
+        ],
+    );
+    let result =
+        cbor::from_slice::<EmbedParent>(&enc).expect_err("parent field should take precedence");
+    assert!(matches!(result, cbor::DecodeError::UnexpectedType));
 }

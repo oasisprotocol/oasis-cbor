@@ -3,7 +3,7 @@ use darling::{util::Flag, FromDeriveInput, FromField, FromVariant};
 use proc_macro2::TokenStream;
 use quote::quote;
 use sk_cbor::values::IntoCborValue;
-use syn::{Expr, Path, Generics, Ident, Type, Lit};
+use syn::{Expr, Generics, Ident, Lit, Path, Type};
 
 #[derive(FromDeriveInput)]
 #[darling(supports(any), attributes(cbor))]
@@ -87,19 +87,25 @@ pub struct Field {
 
 impl Field {
     pub fn to_cbor_key_expr(&self) -> TokenStream {
-        self.rename.as_ref().map(Key::to_cbor_key_expr).unwrap_or_else(|| {
-            // No explicit rename, use identifier name.
-            let ident = self.ident.as_ref().unwrap().to_string();
-            quote!( __cbor::values::IntoCborValue::into_cbor_value(#ident) )
-        })
+        self.rename
+            .as_ref()
+            .map(Key::to_cbor_key_expr)
+            .unwrap_or_else(|| {
+                // No explicit rename, use identifier name.
+                let ident = self.ident.as_ref().unwrap().to_string();
+                quote!( __cbor::values::IntoCborValue::into_cbor_value(#ident) )
+            })
     }
 
     pub fn to_cbor_key(&self) -> sk_cbor::Value {
-        self.rename.as_ref().map(Key::to_cbor_key).unwrap_or_else(|| {
-            // No explicit rename, use identifier name.
-            let ident = self.ident.as_ref().unwrap().to_string();
-            ident.into_cbor_value()
-        })
+        self.rename
+            .as_ref()
+            .map(Key::to_cbor_key)
+            .unwrap_or_else(|| {
+                // No explicit rename, use identifier name.
+                let ident = self.ident.as_ref().unwrap().to_string();
+                ident.into_cbor_value()
+            })
     }
 }
 
@@ -121,14 +127,20 @@ pub struct Variant {
 
     #[darling(default, rename = "skip")]
     pub skip: Flag,
+
+    #[darling(default, rename = "embed")]
+    pub embed: Flag,
 }
 
 impl Variant {
     pub fn to_cbor_key_expr(&self) -> TokenStream {
-        self.rename.as_ref().map(Key::to_cbor_key_expr).unwrap_or_else(|| {
-            // No explicit rename, use identifier name.
-            let ident = self.ident.to_string();
-            quote!( __cbor::values::IntoCborValue::into_cbor_value(#ident) )
-        })
+        self.rename
+            .as_ref()
+            .map(Key::to_cbor_key_expr)
+            .unwrap_or_else(|| {
+                // No explicit rename, use identifier name.
+                let ident = self.ident.to_string();
+                quote!( __cbor::values::IntoCborValue::into_cbor_value(#ident) )
+            })
     }
 }

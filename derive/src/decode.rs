@@ -205,6 +205,9 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
         if variant.skip.is_some() {
             return None;
         }
+        if variant.embed.is_some() {
+            return None;
+        }
 
         let discriminant = match variant.discriminant {
             Some(ref expr) => {
@@ -232,6 +235,9 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                 return None;
             }
             if variant.skip.is_some() {
+                return None;
+            }
+            if variant.embed.is_some() {
                 return None;
             }
 
@@ -263,14 +269,58 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
         })
         .collect();
 
+    // Generate decoders for all embedded variants.
+    let embedded_decoders: Vec<_> = variants
+        .iter()
+        .filter_map(|variant| {
+            if variant.skip.is_some() {
+                return None;
+            }
+            if !variant.embed.is_some() {
+                return None;
+            }
+
+            if !variant.fields.is_newtype() {
+                variant
+                    .ident
+                    .span()
+                    .unwrap()
+                    .error("cannot use embed attribute on non-newtype variant".to_string())
+                    .emit();
+                return None;
+            }
+
+            let variant_ident = &variant.ident;
+            let decode_fn =
+                quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value);
+
+            // TODO: Can we get rid of clone?
+            Some(quote! {
+                if let Ok(result) = #decode_fn(value.clone()) {
+                    return Ok(Self::#variant_ident(result));
+                }
+            })
+        })
+        .collect();
+
     // In case there are no non-unit decoders, just omit the match.
     if non_unit_decoders.is_empty() {
         quote! {
             #(#unit_decoders)*
+            #(#embedded_decoders)*
 
             Err(__cbor::DecodeError::UnknownField)
         }
     } else {
+        let embedded_decoders_map = if !embedded_decoders.is_empty() {
+            quote! {
+                let value = __cbor::Value::Map(vec![(key, value)]);
+                #(#embedded_decoders)*
+            }
+        } else {
+            quote!()
+        };
+
         quote! {
             match value {
                 __cbor::Value::Map(mut map) => {
@@ -281,11 +331,13 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                     let (key, value) = map.pop().unwrap();
 
                     #(#non_unit_decoders)*
+                    #embedded_decoders_map
 
                     Err(__cbor::DecodeError::UnknownField)
                 },
                 _ => {
                     #(#unit_decoders)*
+                    #(#embedded_decoders)*
 
                     Err(__cbor::DecodeError::UnknownField)
                 }
