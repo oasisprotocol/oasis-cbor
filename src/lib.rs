@@ -21,7 +21,7 @@ pub use crate::{
 };
 
 /// Maximum nesting level allowed when decoding from CBOR.
-const MAX_NESTING_LEVEL: i8 = 10;
+const MAX_NESTING_LEVEL: i8 = 64;
 
 /// Error encountered during decoding.
 #[derive(Debug, Error)]
