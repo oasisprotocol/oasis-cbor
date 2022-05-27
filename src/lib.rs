@@ -2,17 +2,18 @@
 //!
 //! This is currently a thin wrapper around the `sk-cbor` crate.
 #![feature(min_specialization)]
+#![feature(trait_alias)]
 
 pub mod decode;
 pub mod encode;
 #[doc(hidden)]
 pub mod macros;
+#[cfg(feature = "serde")]
+pub mod serde;
 
+pub use oasis_cbor_derive::*; // Re-export the support proc-macros.
 pub use sk_cbor::*;
 use thiserror::Error;
-
-// Re-export the support proc-macros.
-pub use oasis_cbor_derive::*;
 
 // Re-export traits.
 pub use crate::{

@@ -17,7 +17,7 @@ pub fn cbor_crate_identifier() -> TokenStream {
         crate_name("oasis-cbor").expect("oasis-cbor should be imported in `Cargo.toml`");
 
     match found_crate {
-        FoundCrate::Itself => quote!(::oasis_cbor),
+        FoundCrate::Itself => quote!(crate),
         FoundCrate::Name(name) => {
             let ident = Ident::new(&name, Span::call_site());
             quote!( ::#ident )

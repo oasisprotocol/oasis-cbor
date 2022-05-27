@@ -728,7 +728,7 @@ fn test_unit_encode_decode() {
 #[test]
 fn test_arrays() {
     let a: [u64; 3] = [1, 2, 3];
-    let enc = cbor::to_vec(a.clone());
+    let enc = cbor::to_vec(a);
     assert_eq!(
         enc,
         vec![
@@ -775,7 +775,7 @@ fn test_bytes() {
     assert_eq!(dec, a, "serialization should round-trip");
 
     let a: [u8; 3] = [1, 2, 3];
-    let enc = cbor::to_vec(a.clone());
+    let enc = cbor::to_vec(a);
     assert_eq!(
         enc,
         vec![
@@ -816,7 +816,7 @@ fn test_char() {
 #[test]
 fn test_skip_field() {
     let sk = SkipVariantsAndFields::First { foo: 10, bar: 20 };
-    let enc = cbor::to_vec(sk.clone());
+    let enc = cbor::to_vec(sk);
     assert_eq!(
         enc,
         vec![
@@ -856,7 +856,7 @@ fn test_skip_variant() {
 
     // Serialization of an unserializable variant should result in undefined.
     let sk = SkipVariantsAndFields::Second { a: 10 };
-    let enc = cbor::to_vec(sk.clone());
+    let enc = cbor::to_vec(sk);
     assert_eq!(enc, vec![247]);
 }
 
@@ -914,7 +914,7 @@ fn test_embed_variant() {
 
     // Using the child field that overlaps will not round-trip.
     let ep = EmbedParent::B(EmbedChild::C("foo".to_string()));
-    let enc = cbor::to_vec(ep.clone());
+    let enc = cbor::to_vec(ep);
     assert_eq!(
         enc,
         vec![
