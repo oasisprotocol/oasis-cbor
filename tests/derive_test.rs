@@ -81,6 +81,38 @@ struct AsArray {
     bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)] // No cbor::{Encode, Decode}!
+struct CustomType(String);
+
+impl CustomType {
+    fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+fn decode_custom_type(value: String) -> Result<CustomType, cbor::DecodeError> {
+    Ok(CustomType(value))
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct CustomEncodeDecode {
+    #[cbor(
+        serialize_with = "CustomType::as_str",
+        deserialize_with = "decode_custom_type"
+    )]
+    foo: CustomType,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[cbor(as_array)]
+struct CustomEncodeDecodeArray {
+    #[cbor(
+        serialize_with = "CustomType::as_str",
+        deserialize_with = "decode_custom_type"
+    )]
+    foo: CustomType,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 enum AlwaysEncodesAsMap {
     Two(u64),
@@ -840,4 +872,25 @@ fn test_embed_variant() {
     let result =
         cbor::from_slice::<EmbedParent>(&enc).expect_err("parent field should take precedence");
     assert!(matches!(result, cbor::DecodeError::UnexpectedType));
+}
+
+#[test]
+fn test_custom_encode_decode() {
+    let ct = CustomEncodeDecode {
+        foo: CustomType("almost a string".to_owned()),
+    };
+    let enc = cbor::to_vec(ct.clone());
+    let dec: CustomEncodeDecode = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, ct);
+}
+
+#[test]
+fn test_custom_encode_decode_array() {
+    let ct = CustomEncodeDecodeArray {
+        foo: CustomType("almost a string".to_owned()),
+    };
+    let enc = cbor::to_vec(ct.clone());
+    let dec: CustomEncodeDecodeArray =
+        cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, ct);
 }

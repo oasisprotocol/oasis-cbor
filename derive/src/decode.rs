@@ -45,6 +45,14 @@ pub fn derive(input: DeriveInput) -> TokenStream {
     })
 }
 
+fn field_decode_fn(field: &Field) -> TokenStream {
+    if let Some(custom_decode_fn) = &field.deserialize_with {
+        quote!((|v| __cbor::Decode::try_from_cbor_value(v).and_then(#custom_decode_fn)))
+    } else {
+        quote!(__cbor::Decode::try_from_cbor_value)
+    }
+}
+
 fn derive_struct(
     ident: &Ident,
     transparent: bool,
@@ -87,8 +95,7 @@ fn derive_struct(
                         // If the field should be skipped, always use Default::default() as value.
                         quote_spanned!(field_ty.span()=> ::std::default::Default::default())
                     } else {
-                        let decode_fn =
-                            quote_spanned!(field_ty.span()=> __cbor::Decode::try_from_cbor_value);
+                        let decode_fn = field_decode_fn(&field);
                         quote!(#decode_fn(it.next().ok_or(__cbor::DecodeError::MissingField)?)?)
                     };
 
@@ -138,11 +145,12 @@ fn derive_struct(
                             quote!(ok_or(__cbor::DecodeError::MissingField)?)
                         };
 
+                        let decode_fn = field_decode_fn(&field);
                         let destruct_fn = quote_spanned!(field_ty.span()=>
                             __cbor::macros::destructure_cbor_map_peek_value_strict);
                         let field_value = quote!({
                             let v: Option<__cbor::Value> = #destruct_fn(&mut it, #key)?;
-                            v.map(__cbor::Decode::try_from_cbor_value).#handle_missing_value?
+                            v.map(#decode_fn).#handle_missing_value?
                         });
 
                         field_value

@@ -83,6 +83,12 @@ pub struct Field {
 
     #[darling(default, rename = "skip_serializing_if")]
     pub skip_serializing_if: Option<Path>,
+
+    #[darling(default, rename = "serialize_with")]
+    pub serialize_with: Option<Path>,
+
+    #[darling(default, rename = "deserialize_with")]
+    pub deserialize_with: Option<Path>,
 }
 
 impl Field {

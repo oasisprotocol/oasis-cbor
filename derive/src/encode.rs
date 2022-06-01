@@ -162,7 +162,11 @@ fn derive_struct(
                         }),
                 };
 
-                let encode_fn = quote_spanned!(field_ty.span()=> __cbor::Encode::into_cbor_value);
+                let field_value = if let Some(custom_encode_fn) = &field.serialize_with {
+                    quote_spanned!(field_ty.span()=> __cbor::Encode::into_cbor_value(#custom_encode_fn(&#field_binding)))
+                } else {
+                    quote_spanned!(field_ty.span()=> __cbor::Encode::into_cbor_value(#field_binding))
+                };
 
                 if as_array {
                     // Output the fields as a CBOR array.
@@ -176,13 +180,10 @@ fn derive_struct(
                         return quote!({});
                     }
 
-                    let field_value = quote!(#encode_fn(#field_binding));
-
                     quote! { fields.push(#field_value); }
                 } else {
                     // Output the fields as a CBOR map.
                     let key = field.to_cbor_key_expr();
-                    let field_value = quote!(#encode_fn(#field_binding) );
 
                     if field.optional.is_some() {
                         // If the field is optional then we can omit it when it is equal to the
