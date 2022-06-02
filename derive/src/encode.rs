@@ -129,17 +129,6 @@ fn derive_struct(
             .iter()
             .enumerate()
             .map(|(i, field)| {
-                // Perform early validation for option compatibility.
-                if field.optional.is_some() && as_array {
-                    field
-                        .ident
-                        .span()
-                        .unwrap()
-                        .error("cannot use optional attribute in arrays".to_string())
-                        .emit();
-                    return quote!({});
-                }
-
                 if field.skip.is_some() {
                     // Skip serializing this field.
                     return quote!();

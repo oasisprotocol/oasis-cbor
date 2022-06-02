@@ -50,7 +50,7 @@ where
     T: Decode,
 {
     let value = reader::read_nested(data, Some(MAX_NESTING_LEVEL))?;
-    T::try_from_cbor_value(value)
+    T::try_from_cbor_value_default(value)
 }
 
 /// Convert high-level CBOR representation into the given type.
@@ -60,7 +60,7 @@ pub fn from_value<T>(value: Value) -> Result<T, DecodeError>
 where
     T: Decode,
 {
-    T::try_from_cbor_value(value)
+    T::try_from_cbor_value_default(value)
 }
 
 /// Convert the given type into its CBOR-encoded representation.

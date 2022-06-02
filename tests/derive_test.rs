@@ -1,10 +1,10 @@
 extern crate alloc;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use oasis_cbor as cbor;
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct A {
     foo: u64,
     bar: String,
@@ -16,13 +16,14 @@ struct A {
     renamed: bool,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct B {
     foo: u64,
     bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[cbor(with_default)]
 enum C {
     One = 1,
     Two = 2,
@@ -30,6 +31,12 @@ enum C {
     Four,
     #[cbor(rename = "five")]
     Five,
+}
+
+impl Default for C {
+    fn default() -> Self {
+        Self::One
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
@@ -47,22 +54,23 @@ enum D {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[cbor(no_default)]
 struct E(u64, String, bool);
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 #[cbor(transparent)]
 struct Transparent(u64);
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct NonTransparent(u64);
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct WithOptionalDefault {
-    #[cbor(optional, default, skip_serializing_if = "String::is_empty")]
+    #[cbor(optional, skip_serializing_if = "String::is_empty")]
     bar: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct WithOptional {
     #[cbor(optional)]
     bar: String,
@@ -74,14 +82,14 @@ enum Untagged {
     First { a: u64, b: u64 },
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 #[cbor(as_array)]
 struct AsArray {
     foo: u64,
     bytes: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)] // No cbor::{Encode, Decode}!
+#[derive(Debug, Default, Clone, Eq, PartialEq)] // No cbor::{Encode, Decode}!
 struct CustomType(String);
 
 impl CustomType {
@@ -94,7 +102,7 @@ fn decode_custom_type(value: String) -> Result<CustomType, cbor::DecodeError> {
     Ok(CustomType(value))
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct CustomEncodeDecode {
     #[cbor(
         serialize_with = "CustomType::as_str",
@@ -103,7 +111,7 @@ struct CustomEncodeDecode {
     foo: CustomType,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 #[cbor(as_array)]
 struct CustomEncodeDecodeArray {
     #[cbor(
@@ -398,8 +406,14 @@ fn test_missing_field() {
         0x66, 0x6F, 0x6F, // "foo"
         0x0A, // unsigned(10)
     ];
-    let res: Result<B, _> = cbor::from_slice(&b_without_bytes);
-    assert!(matches!(res, Err(cbor::DecodeError::MissingField)));
+    let res: B = cbor::from_slice(&b_without_bytes).unwrap();
+    assert_eq!(
+        res,
+        B {
+            foo: 10,
+            bytes: vec![],
+        }
+    )
 }
 
 #[test]
@@ -520,8 +534,11 @@ fn test_with_default() {
     let dec: WithOptionalDefault = cbor::from_slice(&[0xA0]).unwrap();
     assert_eq!(dec, WithOptionalDefault { bar: "".to_owned() });
 
-    let dec: Result<WithOptional, _> = cbor::from_slice(&[0xA0]);
-    assert!(matches!(dec, Err(cbor::DecodeError::UnexpectedType)));
+    let dec: WithOptional = cbor::from_slice(&[0xA0]).unwrap();
+    assert_eq!(dec, WithOptional { bar: "".to_owned() });
+    let wo = WithOptional { bar: "".to_owned() };
+    let enc = cbor::to_vec(wo);
+    assert_eq!(enc, vec![0xA0]);
 
     let wod = WithOptionalDefault { bar: "".to_owned() };
     let enc = cbor::to_vec(wod);
@@ -893,4 +910,83 @@ fn test_custom_encode_decode_array() {
     let dec: CustomEncodeDecodeArray =
         cbor::from_slice(&enc).expect("serialization should round-trip");
     assert_eq!(dec, ct);
+}
+
+#[test]
+fn test_null_decode() {
+    fn decode_from_null<T: cbor::Decode + Default + std::fmt::Debug + PartialEq>() {
+        let data = vec![0xf6]; // Null.
+        let dec1: T = cbor::from_slice(&data).expect(&format!(
+            "type {} can be decoded from CBOR null",
+            std::any::type_name::<T>()
+        ));
+
+        let data = vec![0xf7]; // Undefined.
+        let dec2: T = cbor::from_slice(&data).expect(&format!(
+            "type {} can be decoded from CBOR undefined",
+            std::any::type_name::<T>()
+        ));
+
+        assert_eq!(dec1, dec2);
+        assert_eq!(dec1, Default::default());
+    }
+
+    fn decode_from_null_special<T: cbor::Decode + std::fmt::Debug + PartialEq>(value: T) {
+        let data = vec![0xf6]; // Null.
+        let dec1: T = cbor::from_slice(&data).expect(&format!(
+            "type {} can be decoded from CBOR null",
+            std::any::type_name::<T>()
+        ));
+
+        let data = vec![0xf7]; // Undefined.
+        let dec2: T = cbor::from_slice(&data).expect(&format!(
+            "type {} can be decoded from CBOR undefined",
+            std::any::type_name::<T>()
+        ));
+
+        assert_eq!(dec1, dec2);
+        assert_eq!(dec1, value);
+    }
+
+    fn not_decode_from_null<T: cbor::Decode + std::fmt::Debug>() {
+        let data = vec![0xf6]; // Null.
+        cbor::from_slice::<T>(&data).expect_err(&format!(
+            "type {} should not be decoded from CBOR null",
+            std::any::type_name::<T>()
+        ));
+
+        let data = vec![0xf7]; // Undefined.
+        cbor::from_slice::<T>(&data).expect_err(&format!(
+            "type {} should not be decoded from CBOR undefined",
+            std::any::type_name::<T>()
+        ));
+    }
+
+    decode_from_null::<A>();
+    decode_from_null::<B>();
+    decode_from_null::<C>();
+    decode_from_null::<bool>();
+    decode_from_null::<u8>();
+    decode_from_null::<u32>();
+    decode_from_null::<u128>();
+    decode_from_null::<i8>();
+    decode_from_null::<i32>();
+    decode_from_null::<String>();
+    decode_from_null::<Vec<u8>>();
+    decode_from_null::<Vec<String>>();
+    decode_from_null::<BTreeMap<String, String>>();
+    decode_from_null::<BTreeSet<String>>();
+    decode_from_null::<HashMap<String, String>>();
+    decode_from_null::<HashSet<String>>();
+    decode_from_null::<Option<String>>();
+    decode_from_null::<()>();
+    decode_from_null::<[u8; 32]>();
+
+    decode_from_null_special::<cbor::Value>(cbor::Value::Simple(cbor::SimpleValue::NullValue));
+
+    not_decode_from_null::<[u16; 32]>();
+    not_decode_from_null::<[String; 32]>();
+    not_decode_from_null::<D>();
+    not_decode_from_null::<E>(); // Tagged with cbor(no_default).
+}
 }

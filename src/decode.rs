@@ -11,13 +11,40 @@ use crate::{DecodeError, SimpleValue, Value};
 
 /// Trait for types that can be decoded from CBOR.
 pub trait Decode {
+    /// Try to decode from a missing/null/undefined value.
+    fn try_default() -> Result<Self, DecodeError>
+    where
+        Self: Sized,
+    {
+        Err(DecodeError::MissingField)
+    }
+
+    /// Try to decode from a given CBOR value.
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError>
     where
         Self: Sized;
+
+    /// Try to decode from a given CBOR value, calling `try_default` in case the value is null or
+    /// undefined.
+    fn try_from_cbor_value_default(value: Value) -> Result<Self, DecodeError>
+    where
+        Self: Sized,
+    {
+        match value {
+            // In case of explicit null / undefined values, try to use the default value if one is
+            // available (may still fail if one is not available).
+            Value::Simple(SimpleValue::NullValue | SimpleValue::Undefined) => Self::try_default(),
+            _ => Self::try_from_cbor_value(value),
+        }
+    }
 }
 
 #[impl_for_tuples(1, 10)]
 impl Decode for Tuple {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok((for_tuples!( #( Tuple::try_default()? ),* )))
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Array(mut values) => {
@@ -31,6 +58,10 @@ impl Decode for Tuple {
 macro_rules! impl_uint {
     ($name:ty) => {
         impl Decode for $name {
+            fn try_default() -> Result<Self, DecodeError> {
+                Ok(Default::default())
+            }
+
             fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
                 match value {
                     Value::Unsigned(v) => {
@@ -46,6 +77,10 @@ macro_rules! impl_uint {
 macro_rules! impl_int {
     ($name:ty) => {
         impl Decode for $name {
+            fn try_default() -> Result<Self, DecodeError> {
+                Ok(Default::default())
+            }
+
             fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
                 match value {
                     Value::Unsigned(v) => {
@@ -71,6 +106,10 @@ impl_int!(i32);
 impl_int!(i64);
 
 impl Decode for u128 {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::ByteString(v) => {
@@ -100,6 +139,10 @@ impl Decode for u128 {
 }
 
 impl Decode for bool {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Simple(SimpleValue::FalseValue) => Ok(false),
@@ -110,6 +153,10 @@ impl Decode for bool {
 }
 
 impl Decode for String {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::TextString(v) => Ok(v),
@@ -119,6 +166,10 @@ impl Decode for String {
 }
 
 impl<T: Decode> Decode for Vec<T> {
+    default fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     default fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Array(v) => v.into_iter().map(T::try_from_cbor_value).collect(),
@@ -137,6 +188,10 @@ impl Decode for Vec<u8> {
 }
 
 impl<T: Decode, const N: usize> Decode for [T; N] {
+    default fn try_default() -> Result<Self, DecodeError> {
+        Err(DecodeError::MissingField)
+    }
+
     default fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Array(v) => v
@@ -151,6 +206,10 @@ impl<T: Decode, const N: usize> Decode for [T; N] {
 }
 
 impl<const N: usize> Decode for [u8; N] {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok([0u8; N])
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::ByteString(v) => v.try_into().map_err(|_| DecodeError::UnexpectedType),
@@ -160,6 +219,10 @@ impl<const N: usize> Decode for [u8; N] {
 }
 
 impl<T: Decode> Decode for Option<T> {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Simple(SimpleValue::NullValue) => Ok(None),
@@ -169,12 +232,20 @@ impl<T: Decode> Decode for Option<T> {
 }
 
 impl Decode for Value {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Value::Simple(SimpleValue::NullValue))
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         Ok(value)
     }
 }
 
 impl<K: Decode + Ord, V: Decode> Decode for BTreeMap<K, V> {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Map(v) => {
@@ -190,6 +261,10 @@ impl<K: Decode + Ord, V: Decode> Decode for BTreeMap<K, V> {
 }
 
 impl<T: Decode + Ord> Decode for BTreeSet<T> {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Array(v) => v.into_iter().map(T::try_from_cbor_value).collect(),
@@ -199,6 +274,10 @@ impl<T: Decode + Ord> Decode for BTreeSet<T> {
 }
 
 impl<K: Decode + Eq + std::hash::Hash, V: Decode> Decode for HashMap<K, V> {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Map(v) => {
@@ -214,6 +293,10 @@ impl<K: Decode + Eq + std::hash::Hash, V: Decode> Decode for HashMap<K, V> {
 }
 
 impl<T: Decode + Eq + std::hash::Hash> Decode for HashSet<T> {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Array(v) => v.into_iter().map(T::try_from_cbor_value).collect(),
@@ -223,6 +306,10 @@ impl<T: Decode + Eq + std::hash::Hash> Decode for HashSet<T> {
 }
 
 impl Decode for () {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(())
+    }
+
     fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
         match value {
             Value::Simple(SimpleValue::NullValue) => Ok(()),

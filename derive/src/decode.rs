@@ -16,8 +16,11 @@ pub fn derive(input: DeriveInput) -> TokenStream {
         Err(e) => return e.write_errors(),
     };
 
-    let dec_impl = match dec.data.as_ref() {
-        darling::ast::Data::Enum(variants) => derive_enum(&dec, variants),
+    let (dec_impl, include_dec_default) = match dec.data.as_ref() {
+        darling::ast::Data::Enum(variants) => (
+            derive_enum(&dec, variants),
+            false,
+        ),
         darling::ast::Data::Struct(fields) => {
             let inner = derive_struct(
                 &dec.ident,
@@ -26,8 +29,21 @@ pub fn derive(input: DeriveInput) -> TokenStream {
                 fields,
                 quote!(Self),
             );
-            quote!(Ok({ #inner }))
+            (
+                quote!(Ok({ #inner })),
+                true,
+            )
         }
+    };
+
+    let dec_default_impl = if (include_dec_default && dec.no_default.is_none()) || dec.with_default.is_some() {
+        quote!{
+            fn try_default() -> ::std::result::Result<Self, __cbor::DecodeError> {
+                Ok(Default::default())
+            }
+        }
+    } else {
+        quote!()
     };
 
     let dec_ty_ident = &dec.ident;
@@ -38,6 +54,8 @@ pub fn derive(input: DeriveInput) -> TokenStream {
 
         #[automatically_derived]
         impl #imp __cbor::Decode for #dec_ty_ident #ty #wher {
+            #dec_default_impl
+
             fn try_from_cbor_value(value: __cbor::Value) -> ::std::result::Result<Self, __cbor::DecodeError> {
                 #dec_impl
             }
@@ -47,9 +65,9 @@ pub fn derive(input: DeriveInput) -> TokenStream {
 
 fn field_decode_fn(field: &Field) -> TokenStream {
     if let Some(custom_decode_fn) = &field.deserialize_with {
-        quote!((|v| __cbor::Decode::try_from_cbor_value(v).and_then(#custom_decode_fn)))
+        quote!((|v| __cbor::Decode::try_from_cbor_value_default(v).and_then(#custom_decode_fn)))
     } else {
-        quote!(__cbor::Decode::try_from_cbor_value)
+        quote!(__cbor::Decode::try_from_cbor_value_default)
     }
 }
 
@@ -63,7 +81,7 @@ fn derive_struct(
     if transparent {
         // Transparently forward the implementation to the underlying type. This is only valid for
         // newtype structs.
-        let decode_fn = quote_spanned!(ident.span()=> __cbor::Decode::try_from_cbor_value);
+        let decode_fn = quote_spanned!(ident.span()=> __cbor::Decode::try_from_cbor_value_default);
         quote!(Self(#decode_fn(value)?))
     } else {
         // Process all fields and decode the structure as a map or array.
@@ -128,29 +146,12 @@ fn derive_struct(
                         // If the field should be skipped, always use Default::default() as value.
                         quote_spanned!(field_ty.span()=> ::std::default::Default::default())
                     } else {
-                        let handle_missing_value = if field.optional.is_some() {
-                            let default = if field.default.is_some() {
-                                // Use the default value in case the value is not there.
-                                quote!(Ok(::std::default::Default::default()))
-                            } else {
-                                // Attempt decoding with null value.
-                                quote!(__cbor::Decode::try_from_cbor_value(__cbor::Value::Simple(
-                                    __cbor::SimpleValue::NullValue
-                                )))
-                            };
-
-                            quote!( unwrap_or_else(|| #default) )
-                        } else {
-                            // Value is not optional, so it must be there.
-                            quote!(ok_or(__cbor::DecodeError::MissingField)?)
-                        };
-
                         let decode_fn = field_decode_fn(&field);
                         let destruct_fn = quote_spanned!(field_ty.span()=>
                             __cbor::macros::destructure_cbor_map_peek_value_strict);
                         let field_value = quote!({
                             let v: Option<__cbor::Value> = #destruct_fn(&mut it, #key)?;
-                            v.map(#decode_fn).#handle_missing_value?
+                            #decode_fn(v.unwrap_or(__cbor::Value::Simple(__cbor::SimpleValue::NullValue)))?
                         });
 
                         field_value
@@ -255,7 +256,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
             let decoder = if variant.fields.is_newtype() {
                 // Newtype variants map the key directly to the inner value as if transparent was used.
                 let decode_fn =
-                    quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value);
+                    quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value_default);
                 quote!(Self::#variant_ident(#decode_fn(value)?))
             } else {
                 // Derive inner decoder.
@@ -300,7 +301,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
 
             let variant_ident = &variant.ident;
             let decode_fn =
-                quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value);
+                quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value_default);
 
             // TODO: Can we get rid of clone?
             Some(quote! {
