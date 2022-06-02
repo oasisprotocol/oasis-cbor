@@ -180,9 +180,8 @@ fn derive_struct(
                         match &field.skip_serializing_if {
                             None => {
                                 quote! {
-                                    let fv = #field_value;
-                                    if fv != __cbor::Value::Simple(__cbor::SimpleValue::NullValue) {
-                                        fields.push((#key, fv));
+                                    if !__cbor::Encode::is_empty(&#field_binding) {
+                                        fields.push((#key, #field_value));
                                     }
                                 }
                             }

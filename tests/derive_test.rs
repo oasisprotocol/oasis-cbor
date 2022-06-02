@@ -989,4 +989,52 @@ fn test_null_decode() {
     not_decode_from_null::<D>();
     not_decode_from_null::<E>(); // Tagged with cbor(no_default).
 }
+
+#[test]
+fn encode_empty() {
+    fn encode_is_empty<T: cbor::Encode>(value: T) {
+        #[derive(cbor::Encode)]
+        struct WithField<U: cbor::Encode> {
+            #[cbor(optional)]
+            field: U,
+        }
+
+        let enc = cbor::to_vec(WithField { field: value });
+        assert_eq!(enc, vec![0xA0]) // {}
+    }
+
+    encode_is_empty(false);
+    encode_is_empty(0u8);
+    encode_is_empty(0u16);
+    encode_is_empty(0u32);
+    encode_is_empty(0u64);
+    encode_is_empty(0u128);
+    encode_is_empty(0i8);
+    encode_is_empty(0i16);
+    encode_is_empty(0i32);
+    encode_is_empty(0i64);
+    encode_is_empty(&0u8);
+    encode_is_empty(&0u16);
+    encode_is_empty(&0u32);
+    encode_is_empty(&0u64);
+    encode_is_empty(&0u128);
+    encode_is_empty(&0i8);
+    encode_is_empty(&0i16);
+    encode_is_empty(&0i32);
+    encode_is_empty(&0i64);
+    encode_is_empty(String::new());
+    encode_is_empty("");
+    encode_is_empty(None::<String>);
+    encode_is_empty(vec![]);
+    encode_is_empty(BTreeMap::<String, String>::new());
+    encode_is_empty(BTreeSet::<String>::new());
+    encode_is_empty(HashMap::<String, String>::new());
+    encode_is_empty(HashSet::<String>::new());
+    encode_is_empty(());
+    encode_is_empty((false, 0u8));
+    encode_is_empty((false, 0u8, String::new()));
+    encode_is_empty((false, 0u8, String::new(), 0i64));
+    encode_is_empty((false, 0u8, 0u16, 0u128, vec![]));
+    encode_is_empty(cbor::Value::Simple(cbor::SimpleValue::NullValue));
+    encode_is_empty(cbor::Value::Simple(cbor::SimpleValue::Undefined));
 }

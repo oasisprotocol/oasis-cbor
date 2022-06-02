@@ -7,6 +7,11 @@ use crate::{SimpleValue, Value};
 
 /// Trait for types that can be encoded into CBOR.
 pub trait Encode {
+    /// Whether the value is equal to the empty value for the type.
+    fn is_empty(&self) -> bool {
+        false
+    }
+
     /// Encode the type into a CBOR Value.
     fn into_cbor_value(self) -> Value;
 }
@@ -27,6 +32,10 @@ pub trait EncodeAsMap: Encode {
 
 #[impl_for_tuples(1, 10)]
 impl Encode for Tuple {
+    fn is_empty(&self) -> bool {
+        for_tuples!( #( Tuple.is_empty() )&* );
+    }
+
     #[allow(clippy::vec_init_then_push)]
     fn into_cbor_value(self) -> Value {
         let mut values = vec![];
@@ -38,12 +47,20 @@ impl Encode for Tuple {
 macro_rules! impl_uint {
     ($name:ty) => {
         impl Encode for $name {
+            fn is_empty(&self) -> bool {
+                *self == 0
+            }
+
             fn into_cbor_value(self) -> Value {
                 Value::Unsigned(self as u64)
             }
         }
 
         impl Encode for &$name {
+            fn is_empty(&self) -> bool {
+                **self == 0
+            }
+
             fn into_cbor_value(self) -> Value {
                 Encode::into_cbor_value(*self)
             }
@@ -54,12 +71,20 @@ macro_rules! impl_uint {
 macro_rules! impl_int {
     ($name:ty) => {
         impl Encode for $name {
+            fn is_empty(&self) -> bool {
+                *self == 0
+            }
+
             fn into_cbor_value(self) -> Value {
                 Value::integer(self as i64)
             }
         }
 
         impl Encode for &$name {
+            fn is_empty(&self) -> bool {
+                **self == 0
+            }
+
             fn into_cbor_value(self) -> Value {
                 Encode::into_cbor_value(*self)
             }
@@ -77,18 +102,30 @@ impl_int!(i32);
 impl_int!(i64);
 
 impl Encode for u128 {
+    fn is_empty(&self) -> bool {
+        *self == 0
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::ByteString(self.to_be_bytes()[self.leading_zeros() as usize / 8..].to_vec())
     }
 }
 
 impl Encode for &u128 {
+    fn is_empty(&self) -> bool {
+        **self == 0
+    }
+
     fn into_cbor_value(self) -> Value {
         Encode::into_cbor_value(*self)
     }
 }
 
 impl Encode for bool {
+    fn is_empty(&self) -> bool {
+        !*self
+    }
+
     fn into_cbor_value(self) -> Value {
         if self {
             Value::Simple(SimpleValue::TrueValue)
@@ -99,18 +136,30 @@ impl Encode for bool {
 }
 
 impl Encode for String {
+    fn is_empty(&self) -> bool {
+        String::is_empty(self)
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::TextString(self)
     }
 }
 
 impl Encode for &str {
+    fn is_empty(&self) -> bool {
+        str::is_empty(self)
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::TextString(self.to_string())
     }
 }
 
 impl<T: Encode> Encode for Vec<T> {
+    default fn is_empty(&self) -> bool {
+        Vec::is_empty(self)
+    }
+
     default fn into_cbor_value(self) -> Value {
         Value::Array(self.into_iter().map(Encode::into_cbor_value).collect())
     }
@@ -139,6 +188,10 @@ impl<const N: usize> Encode for [u8; N] {
 }
 
 impl<T: Encode> Encode for Option<T> {
+    fn is_empty(&self) -> bool {
+        self.is_none()
+    }
+
     fn into_cbor_value(self) -> Value {
         match self {
             Some(v) => Encode::into_cbor_value(v),
@@ -148,12 +201,23 @@ impl<T: Encode> Encode for Option<T> {
 }
 
 impl Encode for Value {
+    fn is_empty(&self) -> bool {
+        matches!(
+            self,
+            Value::Simple(SimpleValue::NullValue | SimpleValue::Undefined)
+        )
+    }
+
     fn into_cbor_value(self) -> Value {
         self
     }
 }
 
 impl<K: Encode, V: Encode> Encode for BTreeMap<K, V> {
+    fn is_empty(&self) -> bool {
+        BTreeMap::is_empty(self)
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::Map(
             self.into_iter()
@@ -166,12 +230,20 @@ impl<K: Encode, V: Encode> Encode for BTreeMap<K, V> {
 impl<K: Encode, V: Encode> EncodeAsMap for BTreeMap<K, V> {}
 
 impl<V: Encode> Encode for BTreeSet<V> {
+    fn is_empty(&self) -> bool {
+        BTreeSet::is_empty(self)
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::Array(self.into_iter().map(Encode::into_cbor_value).collect())
     }
 }
 
 impl<K: Encode, V: Encode> Encode for HashMap<K, V> {
+    fn is_empty(&self) -> bool {
+        HashMap::is_empty(self)
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::Map(
             self.into_iter()
@@ -184,12 +256,20 @@ impl<K: Encode, V: Encode> Encode for HashMap<K, V> {
 impl<K: Encode, V: Encode> EncodeAsMap for HashMap<K, V> {}
 
 impl<V: Encode> Encode for HashSet<V> {
+    fn is_empty(&self) -> bool {
+        HashSet::is_empty(self)
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::Array(self.into_iter().map(Encode::into_cbor_value).collect())
     }
 }
 
 impl Encode for () {
+    fn is_empty(&self) -> bool {
+        true
+    }
+
     fn into_cbor_value(self) -> Value {
         Value::Simple(SimpleValue::NullValue)
     }
