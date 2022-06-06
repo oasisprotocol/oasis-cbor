@@ -21,6 +21,13 @@ pub struct Codable {
 
     #[darling(default, rename = "as_array")]
     pub as_array: Flag,
+
+    #[darling(default, rename = "no_default")]
+    pub no_default: Flag,
+
+    // TODO: Add exclusion check after bump to darling 0.14.x.
+    #[darling(default, rename = "with_default")]
+    pub with_default: Flag,
 }
 
 pub enum Key {
@@ -75,14 +82,17 @@ pub struct Field {
     #[darling(default, rename = "optional")]
     pub optional: Flag,
 
-    #[darling(default, rename = "default")]
-    pub default: Flag,
-
     #[darling(default, rename = "skip")]
     pub skip: Flag,
 
     #[darling(default, rename = "skip_serializing_if")]
     pub skip_serializing_if: Option<Path>,
+
+    #[darling(default, rename = "serialize_with")]
+    pub serialize_with: Option<Path>,
+
+    #[darling(default, rename = "deserialize_with")]
+    pub deserialize_with: Option<Path>,
 }
 
 impl Field {
