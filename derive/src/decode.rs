@@ -122,6 +122,9 @@ fn derive_struct(
                 .collect();
 
             (extract_value, field_map_items)
+        } else if fields.is_unit() {
+            // This is a unit struct with no fields.
+            (quote! {Vec::<()>::new()}, vec![])
         } else {
             // Field represented as a map.
             let extract_value = quote! {

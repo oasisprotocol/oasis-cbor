@@ -76,6 +76,9 @@ struct WithOptional {
     bar: String,
 }
 
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct Unit;
+
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode)]
 #[cbor(untagged)]
 enum Untagged {
@@ -527,6 +530,21 @@ fn test_bigint() {
         let dec: u128 = cbor::from_slice(&enc).expect("decoding should succeed");
         assert_eq!(v, dec, "serialization should round-trip");
     }
+}
+
+#[test]
+fn test_unit_struct() {
+    let t1 = Unit;
+    let enc = cbor::to_vec(t1.clone());
+    assert_eq!(
+        enc,
+        vec![
+            0xf6, // null
+        ]
+    );
+
+    let dec: Unit = cbor::from_slice(&enc).unwrap();
+    assert_eq!(dec, t1, "serialization should round-trip");
 }
 
 #[test]
