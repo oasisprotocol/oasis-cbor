@@ -792,6 +792,28 @@ fn test_bytes() {
 }
 
 #[test]
+fn test_char() {
+    let t1 = 'A';
+    let enc = cbor::to_vec(t1.clone());
+    assert_eq!(
+        enc,
+        vec![
+            0x18, 0x41, // unsigned(65)
+        ]
+    );
+
+    let dec: char = cbor::from_slice(&enc).unwrap();
+    assert_eq!(dec, t1, "serialization should round-trip");
+
+    let bad_char = cbor::Value::Unsigned(0x110000); // invalid codepoint; unicode goes to 0x10ffff
+    let result: Result<char, _> = cbor::from_value(bad_char);
+    assert!(matches!(
+        result.expect_err("deserialization should fail"),
+        cbor::DecodeError::UnexpectedType
+    ));
+}
+
+#[test]
 fn test_skip_field() {
     let sk = SkipVariantsAndFields::First { foo: 10, bar: 20 };
     let enc = cbor::to_vec(sk.clone());
@@ -989,6 +1011,7 @@ fn test_null_decode() {
     decode_from_null::<u128>();
     decode_from_null::<i8>();
     decode_from_null::<i32>();
+    decode_from_null::<char>();
     decode_from_null::<String>();
     decode_from_null::<Vec<u8>>();
     decode_from_null::<Vec<String>>();
@@ -1040,6 +1063,7 @@ fn encode_empty() {
     encode_is_empty(&0i16);
     encode_is_empty(&0i32);
     encode_is_empty(&0i64);
+    encode_is_empty('\x00');
     encode_is_empty(String::new());
     encode_is_empty("");
     encode_is_empty(None::<String>);

@@ -165,6 +165,21 @@ impl Decode for String {
     }
 }
 
+impl Decode for char {
+    fn try_default() -> Result<Self, DecodeError> {
+        Ok(Default::default())
+    }
+
+    fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
+        match value {
+            Value::Unsigned(n) if n <= (u32::MAX as u64) => {
+                char::from_u32(n as u32).ok_or(DecodeError::UnexpectedType)
+            }
+            _ => Err(DecodeError::UnexpectedType),
+        }
+    }
+}
+
 impl<T: Decode> Decode for Vec<T> {
     default fn try_default() -> Result<Self, DecodeError> {
         Ok(Default::default())
