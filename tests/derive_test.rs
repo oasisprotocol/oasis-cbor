@@ -692,31 +692,6 @@ fn test_non_string_keys() {
 }
 
 #[test]
-fn test_order_value() {
-    let ord = Order::default();
-    let enc = cbor::to_value(ord.clone());
-    match enc {
-        cbor::Value::Map(ref pairs) => {
-            assert_eq!(pairs[0].0, cbor::cbor_text!("first"));
-            assert_eq!(pairs[1].0, cbor::cbor_text!("second"));
-            assert_eq!(pairs[2].0, cbor::cbor_text!("thirdd"));
-        }
-        _ => panic!("should encode to map"),
-    }
-    let dec: Order = cbor::from_value(enc).expect("serialization should round-trip");
-    assert_eq!(dec, ord, "serialization should round-trip");
-
-    let ord = OrderEnum::Foo {
-        second: 42,
-        first: "test".to_string(),
-        thirdd: true,
-    };
-    let enc = cbor::to_value(ord.clone());
-    let dec: OrderEnum = cbor::from_value(enc).expect("serialization should round-trip");
-    assert_eq!(dec, ord, "serialization should round-trip");
-}
-
-#[test]
 fn test_unit_encode_decode() {
     let data = vec![0xf6]; // Null.
     let _dec: () = cbor::from_slice(&data).expect("unit type can be decoded from CBOR null");

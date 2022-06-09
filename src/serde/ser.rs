@@ -214,15 +214,9 @@ impl<'a> ser::SerializeStructVariant for StructVariantSerializer {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        // Normalization (sorting) also happens inside sk_cbor, so this is
-        // technically redundant, but oasis_cbor (non-serde) does the same,
-        // so this makes the two compatible at the `Value` level.
-        let mut fields = self.fields;
-        fields.sort();
-
         Ok(Value::Map(vec![(
             self.variant.serialize(&mut Serializer)?,
-            Value::Map(fields),
+            Value::Map(self.fields),
         )]))
     }
 }
@@ -292,12 +286,7 @@ impl ser::SerializeMap for MapSerializer {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        // Normalization (sorting) also happens inside sk_cbor, so this is
-        // technically redundant, but oasis_cbor (non-serde) does the same,
-        // so this makes the two compatible at the `Value` level.
-        let mut items = self.items;
-        items.sort();
-        Ok(Value::Map(items))
+        Ok(Value::Map(self.items))
     }
 }
 

@@ -77,7 +77,7 @@ fn derive_struct(
     as_array: bool,
     unit_as_struct: bool,
     fields: darling::ast::Fields<&Field>,
-    mut field_bindings: Option<Vec<Ident>>,
+    field_bindings: Option<Vec<Ident>>,
 ) -> DeriveResult {
     if fields.is_unit() && !unit_as_struct {
         return DeriveResult {
@@ -107,23 +107,6 @@ fn derive_struct(
     } else {
         // Process all fields and encode the structure as a map or array.
         let as_array = fields.is_tuple() || fields.is_newtype() || as_array;
-
-        // Sort fields by their CBOR keys. This makes sure that fields are ordered correctly even
-        // when encoded into intermediate cbor::Value types (since writer also sorts).
-        let mut fields = fields.fields;
-        if !as_array {
-            // First sort any field bindings.
-            field_bindings = field_bindings.map(|bindings| {
-                let mut field_bindings_idx: Vec<_> = bindings.iter().enumerate().collect();
-                field_bindings_idx.sort_by_key(|(i, _)| fields[*i].to_cbor_key());
-                field_bindings_idx
-                    .into_iter()
-                    .map(|(_, f)| f.clone())
-                    .collect()
-            });
-            // Then sort the fields.
-            fields.sort_by_key(|f| f.to_cbor_key());
-        }
 
         let field_map_items: Vec<_> = fields
             .iter()

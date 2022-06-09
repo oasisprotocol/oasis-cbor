@@ -155,11 +155,15 @@ fn test_tuple() {
 
 #[test]
 fn test_map() {
+    // string keys
     let mut m = std::collections::HashMap::new();
     m.insert("foo".to_string(), "one".to_string());
     m.insert("bar".to_string(), "two".to_string());
     m.insert("baz".to_string(), "three".to_string());
     m.insert("quux".to_string(), "four".to_string());
+    // There's no guarantee about the order of the keys inside the Value::Map that is produced
+    // by serialization. The test is stable only because Value::Map's equality operator
+    // ignores the order.
     assert_compat_roundtrip(
         m,
         Value::Map(vec![
@@ -170,6 +174,7 @@ fn test_map() {
         ]),
     );
 
+    // int keys
     let mut m = std::collections::HashMap::new();
     m.insert(2u8, 4u8);
     m.insert(1, 5);
