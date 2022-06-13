@@ -122,16 +122,20 @@ fn derive_struct(
                 .collect();
 
             (extract_value, field_map_items)
+        } else if fields.is_unit() {
+            // This is a unit struct with no fields.
+            (quote! {Vec::<()>::new()}, vec![])
         } else {
             // Field represented as a map.
             let extract_value = quote! {
                 match value {
-                    __cbor::Value::Map(map) => map,
+                    // Sort map entries by CBOR keys.
+                    __cbor::Value::Map(mut map) => { map.sort(); map },
                     _ => return Err(__cbor::DecodeError::UnexpectedType),
                 }
             };
 
-            // Sort fields by their CBOR keys to make destructure_cbor_map_peek_value_strict work.
+            // Sort struct fields by their CBOR keys to make destructure_cbor_map_peek_value_strict work.
             let mut fields = fields.fields;
             fields.sort_by(|a, b| a.to_cbor_key().partial_cmp(&b.to_cbor_key()).unwrap());
 

@@ -76,6 +76,9 @@ struct WithOptional {
     bar: String,
 }
 
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct Unit;
+
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode)]
 #[cbor(untagged)]
 enum Untagged {
@@ -530,6 +533,21 @@ fn test_bigint() {
 }
 
 #[test]
+fn test_unit_struct() {
+    let t1 = Unit;
+    let enc = cbor::to_vec(t1.clone());
+    assert_eq!(
+        enc,
+        vec![
+            0xf6, // null
+        ]
+    );
+
+    let dec: Unit = cbor::from_slice(&enc).unwrap();
+    assert_eq!(dec, t1, "serialization should round-trip");
+}
+
+#[test]
 fn test_with_default() {
     let dec: WithOptionalDefault = cbor::from_slice(&[0xA0]).unwrap();
     assert_eq!(dec, WithOptionalDefault { bar: "".to_owned() });
@@ -674,31 +692,6 @@ fn test_non_string_keys() {
 }
 
 #[test]
-fn test_order_value() {
-    let ord = Order::default();
-    let enc = cbor::to_value(ord.clone());
-    match enc {
-        cbor::Value::Map(ref pairs) => {
-            assert_eq!(pairs[0].0, cbor::cbor_text!("first"));
-            assert_eq!(pairs[1].0, cbor::cbor_text!("second"));
-            assert_eq!(pairs[2].0, cbor::cbor_text!("thirdd"));
-        }
-        _ => panic!("should encode to map"),
-    }
-    let dec: Order = cbor::from_value(enc).expect("serialization should round-trip");
-    assert_eq!(dec, ord, "serialization should round-trip");
-
-    let ord = OrderEnum::Foo {
-        second: 42,
-        first: "test".to_string(),
-        thirdd: true,
-    };
-    let enc = cbor::to_value(ord.clone());
-    let dec: OrderEnum = cbor::from_value(enc).expect("serialization should round-trip");
-    assert_eq!(dec, ord, "serialization should round-trip");
-}
-
-#[test]
 fn test_unit_encode_decode() {
     let data = vec![0xf6]; // Null.
     let _dec: () = cbor::from_slice(&data).expect("unit type can be decoded from CBOR null");
@@ -710,7 +703,7 @@ fn test_unit_encode_decode() {
 #[test]
 fn test_arrays() {
     let a: [u64; 3] = [1, 2, 3];
-    let enc = cbor::to_vec(a.clone());
+    let enc = cbor::to_vec(a);
     assert_eq!(
         enc,
         vec![
@@ -757,7 +750,7 @@ fn test_bytes() {
     assert_eq!(dec, a, "serialization should round-trip");
 
     let a: [u8; 3] = [1, 2, 3];
-    let enc = cbor::to_vec(a.clone());
+    let enc = cbor::to_vec(a);
     assert_eq!(
         enc,
         vec![
@@ -774,9 +767,31 @@ fn test_bytes() {
 }
 
 #[test]
+fn test_char() {
+    let t1 = 'A';
+    let enc = cbor::to_vec(t1.clone());
+    assert_eq!(
+        enc,
+        vec![
+            0x18, 0x41, // unsigned(65)
+        ]
+    );
+
+    let dec: char = cbor::from_slice(&enc).unwrap();
+    assert_eq!(dec, t1, "serialization should round-trip");
+
+    let bad_char = cbor::Value::Unsigned(0x110000); // invalid codepoint; unicode goes to 0x10ffff
+    let result: Result<char, _> = cbor::from_value(bad_char);
+    assert!(matches!(
+        result.expect_err("deserialization should fail"),
+        cbor::DecodeError::UnexpectedType
+    ));
+}
+
+#[test]
 fn test_skip_field() {
     let sk = SkipVariantsAndFields::First { foo: 10, bar: 20 };
-    let enc = cbor::to_vec(sk.clone());
+    let enc = cbor::to_vec(sk);
     assert_eq!(
         enc,
         vec![
@@ -816,7 +831,7 @@ fn test_skip_variant() {
 
     // Serialization of an unserializable variant should result in undefined.
     let sk = SkipVariantsAndFields::Second { a: 10 };
-    let enc = cbor::to_vec(sk.clone());
+    let enc = cbor::to_vec(sk);
     assert_eq!(enc, vec![247]);
 }
 
@@ -874,7 +889,7 @@ fn test_embed_variant() {
 
     // Using the child field that overlaps will not round-trip.
     let ep = EmbedParent::B(EmbedChild::C("foo".to_string()));
-    let enc = cbor::to_vec(ep.clone());
+    let enc = cbor::to_vec(ep);
     assert_eq!(
         enc,
         vec![
@@ -971,6 +986,7 @@ fn test_null_decode() {
     decode_from_null::<u128>();
     decode_from_null::<i8>();
     decode_from_null::<i32>();
+    decode_from_null::<char>();
     decode_from_null::<String>();
     decode_from_null::<Vec<u8>>();
     decode_from_null::<Vec<String>>();
@@ -1022,6 +1038,7 @@ fn encode_empty() {
     encode_is_empty(&0i16);
     encode_is_empty(&0i32);
     encode_is_empty(&0i64);
+    encode_is_empty('\x00');
     encode_is_empty(String::new());
     encode_is_empty("");
     encode_is_empty(None::<String>);

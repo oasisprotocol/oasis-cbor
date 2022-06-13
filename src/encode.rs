@@ -155,6 +155,15 @@ impl Encode for &str {
     }
 }
 
+impl Encode for char {
+    fn into_cbor_value(self) -> Value {
+        Value::Unsigned(self as u64)
+    }
+    fn is_empty(&self) -> bool {
+        *self == '\x00'
+    }
+}
+
 impl<T: Encode> Encode for Vec<T> {
     default fn is_empty(&self) -> bool {
         Vec::is_empty(self)
