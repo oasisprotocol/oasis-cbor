@@ -26,6 +26,7 @@ pub fn derive(input: DeriveInput) -> TokenStream {
                 &dec.ident,
                 dec.transparent.is_some(),
                 dec.as_array.is_some(),
+                dec.allow_unknown.is_some(),
                 fields,
                 quote!(Self),
             );
@@ -75,6 +76,7 @@ fn derive_struct(
     ident: &Ident,
     transparent: bool,
     as_array: bool,
+    allow_unknown: bool,
     fields: darling::ast::Fields<&Field>,
     self_ty: TokenStream,
 ) -> TokenStream {
@@ -168,6 +170,16 @@ fn derive_struct(
             (extract_value, field_map_items)
         };
 
+        let handle_unknown_fields = if allow_unknown {
+            quote!()
+        } else {
+            quote! {
+                if it.next().is_some() {
+                    return Err(__cbor::DecodeError::UnknownField);
+                }
+            }
+        };
+
         quote! {
             let fields = #extract_value;
             let mut it = fields.into_iter().peekable();
@@ -176,9 +188,7 @@ fn derive_struct(
                 #(#field_map_items),*
             };
 
-            if it.next().is_some() {
-                return Err(__cbor::DecodeError::UnknownField);
-            }
+            #handle_unknown_fields
 
             v
         }
@@ -268,6 +278,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                     &variant.ident,
                     false,
                     variant.as_array.is_some(),
+                    variant.allow_unknown.is_some(),
                     variant.fields.as_ref(),
                     quote!(Self::#variant_ident),
                 );

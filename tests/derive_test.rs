@@ -22,6 +22,13 @@ struct B {
     bytes: Vec<u8>,
 }
 
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+#[cbor(allow_unknown)]
+struct BWithUnknown {
+    foo: u64,
+    bytes: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 #[cbor(with_default)]
 enum C {
@@ -505,6 +512,27 @@ fn test_extra_fields() {
     ];
     let res: Result<B, _> = cbor::from_slice(&b_extra);
     assert!(matches!(res, Err(cbor::DecodeError::UnknownField)));
+}
+
+#[test]
+fn test_extra_fields_allowed() {
+    let b_extra = vec![
+        // {"foo": 10, "bytes": h'00', "bytesextra": true}
+        0xA3, // map(3)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x0A, // unsigned(10)
+        0x65, // text(5)
+        0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+        0x41, // bytes(1)
+        0x00, // "\x00"
+        0x6A, // text(10)
+        0x62, 0x79, 0x74, 0x65, 0x73, 0x65, 0x78, 0x74, 0x72, 0x61, // "bytesextra"
+        0xF5, // primitive(21)
+    ];
+    let res: BWithUnknown = cbor::from_slice(&b_extra).unwrap();
+    assert_eq!(res.foo, 10);
+    assert_eq!(res.bytes, vec![0x00]);
 }
 
 #[test]
