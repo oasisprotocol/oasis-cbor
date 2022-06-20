@@ -28,6 +28,9 @@ pub struct Codable {
     // TODO: Add exclusion check after bump to darling 0.14.x.
     #[darling(default, rename = "with_default")]
     pub with_default: Flag,
+
+    #[darling(default, rename = "allow_unknown")]
+    pub allow_unknown: Flag,
 }
 
 pub enum Key {
@@ -140,6 +143,9 @@ pub struct Variant {
 
     #[darling(default, rename = "embed")]
     pub embed: Flag,
+
+    #[darling(default, rename = "allow_unknown")]
+    pub allow_unknown: Flag,
 }
 
 impl Variant {
