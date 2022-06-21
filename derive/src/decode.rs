@@ -17,35 +17,30 @@ pub fn derive(input: DeriveInput) -> TokenStream {
     };
 
     let (dec_impl, include_dec_default) = match dec.data.as_ref() {
-        darling::ast::Data::Enum(variants) => (
-            derive_enum(&dec, variants),
-            false,
-        ),
+        darling::ast::Data::Enum(variants) => (derive_enum(&dec, variants), false),
         darling::ast::Data::Struct(fields) => {
             let inner = derive_struct(
                 &dec.ident,
-                dec.transparent.is_some(),
-                dec.as_array.is_some(),
-                dec.allow_unknown.is_some(),
+                dec.transparent.is_present(),
+                dec.as_array.is_present(),
+                dec.allow_unknown.is_present(),
                 fields,
                 quote!(Self),
             );
-            (
-                quote!(Ok({ #inner })),
-                true,
-            )
+            (quote!(Ok({ #inner })), true)
         }
     };
 
-    let dec_default_impl = if (include_dec_default && dec.no_default.is_none()) || dec.with_default.is_some() {
-        quote!{
-            fn try_default() -> ::std::result::Result<Self, __cbor::DecodeError> {
-                Ok(Default::default())
+    let dec_default_impl =
+        if (include_dec_default && !dec.no_default.is_present()) || dec.with_default.is_present() {
+            quote! {
+                fn try_default() -> ::std::result::Result<Self, __cbor::DecodeError> {
+                    Ok(Default::default())
+                }
             }
-        }
-    } else {
-        quote!()
-    };
+        } else {
+            quote!()
+        };
 
     let dec_ty_ident = &dec.ident;
     let (imp, ty, wher) = dec.generics.split_for_impl();
@@ -111,7 +106,7 @@ fn derive_struct(
                         }),
                     };
 
-                    let field_value = if field.skip.is_some() {
+                    let field_value = if field.skip.is_present() {
                         // If the field should be skipped, always use Default::default() as value.
                         quote_spanned!(field_ty.span()=> ::std::default::Default::default())
                     } else {
@@ -148,7 +143,7 @@ fn derive_struct(
                     let field_ty = &field.ty;
                     let key = field.to_cbor_key_expr();
 
-                    let field_value = if field.skip.is_some() {
+                    let field_value = if field.skip.is_present() {
                         // If the field should be skipped, always use Default::default() as value.
                         quote_spanned!(field_ty.span()=> ::std::default::Default::default())
                     } else {
@@ -197,7 +192,7 @@ fn derive_struct(
 
 fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     // Make sure the transparent attribute cannot be used on an enum.
-    if dec.transparent.is_some() {
+    if dec.transparent.is_present() {
         dec.ident
             .span()
             .unwrap()
@@ -207,7 +202,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     }
 
     // Make sure decoding of untagged enums is not supported.
-    if dec.untagged.is_some() {
+    if dec.untagged.is_present() {
         dec.ident
             .span()
             .unwrap()
@@ -222,13 +217,13 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
 
     // Generate decoders for all unit variants.
     let unit_decoders = variants.iter().filter_map(|variant| {
-        if !variant.fields.is_unit() || variant.as_struct.is_some() {
+        if !variant.fields.is_unit() || variant.as_struct.is_present() {
             return None;
         }
-        if variant.skip.is_some() {
+        if variant.skip.is_present() {
             return None;
         }
-        if variant.embed.is_some() {
+        if variant.embed.is_present() {
             return None;
         }
 
@@ -254,13 +249,13 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     let non_unit_decoders: Vec<_> = variants
         .iter()
         .filter_map(|variant| {
-            if variant.fields.is_unit() && !variant.as_struct.is_some() {
+            if variant.fields.is_unit() && !variant.as_struct.is_present() {
                 return None;
             }
-            if variant.skip.is_some() {
+            if variant.skip.is_present() {
                 return None;
             }
-            if variant.embed.is_some() {
+            if variant.embed.is_present() {
                 return None;
             }
 
@@ -277,8 +272,8 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                 let inner = derive_struct(
                     &variant.ident,
                     false,
-                    variant.as_array.is_some(),
-                    variant.allow_unknown.is_some(),
+                    variant.as_array.is_present(),
+                    variant.allow_unknown.is_present(),
                     variant.fields.as_ref(),
                     quote!(Self::#variant_ident),
                 );
@@ -297,10 +292,10 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     let embedded_decoders: Vec<_> = variants
         .iter()
         .filter_map(|variant| {
-            if variant.skip.is_some() {
+            if variant.skip.is_present() {
                 return None;
             }
-            if !variant.embed.is_some() {
+            if !variant.embed.is_present() {
                 return None;
             }
 
