@@ -13,7 +13,7 @@ categories = ["encoding"]
 proc-macro = true
 
 [dependencies]
-darling = "0.13.0"
+darling = "0.14.1"
 proc-macro2 = "1.0.27"
 quote = "1.0.9"
 syn = "1.0.73"

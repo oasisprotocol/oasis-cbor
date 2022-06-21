@@ -1,5 +1,5 @@
 //! Common definitions for both encoder and decoder.
-use darling::{util::Flag, FromDeriveInput, FromField, FromVariant};
+use darling::{util::Flag, Error, FromDeriveInput, FromField, FromVariant, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
 use sk_cbor::values::IntoCborValue;
@@ -7,30 +7,41 @@ use syn::{Expr, Generics, Ident, Lit, Path, Type};
 
 #[derive(FromDeriveInput)]
 #[darling(supports(any), attributes(cbor))]
+#[darling(and_then = "Self::exclusive_default_and_with_default")]
 pub struct Codable {
     pub ident: Ident,
     pub generics: Generics,
 
     pub data: darling::ast::Data<Variant, Field>,
 
-    #[darling(default, rename = "transparent")]
+    #[darling(rename = "transparent")]
     pub transparent: Flag,
 
-    #[darling(default, rename = "untagged")]
+    #[darling(rename = "untagged")]
     pub untagged: Flag,
 
-    #[darling(default, rename = "as_array")]
+    #[darling(rename = "as_array")]
     pub as_array: Flag,
 
-    #[darling(default, rename = "no_default")]
+    #[darling(rename = "no_default")]
     pub no_default: Flag,
 
-    // TODO: Add exclusion check after bump to darling 0.14.x.
-    #[darling(default, rename = "with_default")]
+    #[darling(rename = "with_default")]
     pub with_default: Flag,
 
-    #[darling(default, rename = "allow_unknown")]
+    #[darling(rename = "allow_unknown")]
     pub allow_unknown: Flag,
+}
+
+impl Codable {
+    fn exclusive_default_and_with_default(self) -> Result<Self> {
+        if self.no_default.is_present() && self.with_default.is_present() {
+            Err(Error::custom("Cannot set no_default and with_default")
+                .with_span(&self.with_default))
+        } else {
+            Ok(self)
+        }
+    }
 }
 
 pub enum Key {
@@ -79,22 +90,22 @@ pub struct Field {
     pub ident: Option<Ident>,
     pub ty: Type,
 
-    #[darling(default, rename = "rename")]
+    #[darling(rename = "rename")]
     pub rename: Option<Key>,
 
-    #[darling(default, rename = "optional")]
+    #[darling(rename = "optional")]
     pub optional: Flag,
 
-    #[darling(default, rename = "skip")]
+    #[darling(rename = "skip")]
     pub skip: Flag,
 
-    #[darling(default, rename = "skip_serializing_if")]
+    #[darling(rename = "skip_serializing_if")]
     pub skip_serializing_if: Option<Path>,
 
-    #[darling(default, rename = "serialize_with")]
+    #[darling(rename = "serialize_with")]
     pub serialize_with: Option<Path>,
 
-    #[darling(default, rename = "deserialize_with")]
+    #[darling(rename = "deserialize_with")]
     pub deserialize_with: Option<Path>,
 }
 
@@ -129,22 +140,22 @@ pub struct Variant {
     pub discriminant: Option<Expr>,
     pub fields: darling::ast::Fields<Field>,
 
-    #[darling(default, rename = "rename")]
+    #[darling(rename = "rename")]
     pub rename: Option<Key>,
 
-    #[darling(default, rename = "as_array")]
+    #[darling(rename = "as_array")]
     pub as_array: Flag,
 
-    #[darling(default, rename = "as_struct")]
+    #[darling(rename = "as_struct")]
     pub as_struct: Flag,
 
-    #[darling(default, rename = "skip")]
+    #[darling(rename = "skip")]
     pub skip: Flag,
 
-    #[darling(default, rename = "embed")]
+    #[darling(rename = "embed")]
     pub embed: Flag,
 
-    #[darling(default, rename = "allow_unknown")]
+    #[darling(rename = "allow_unknown")]
     pub allow_unknown: Flag,
 }
 

@@ -34,8 +34,8 @@ pub fn derive(input: DeriveInput) -> TokenStream {
         darling::ast::Data::Enum(variants) => derive_enum(&enc, variants),
         darling::ast::Data::Struct(fields) => derive_struct(
             &enc.ident,
-            enc.transparent.is_some(),
-            enc.as_array.is_some(),
+            enc.transparent.is_present(),
+            enc.as_array.is_present(),
             false,
             fields,
             None,
@@ -112,7 +112,7 @@ fn derive_struct(
             .iter()
             .enumerate()
             .map(|(i, field)| {
-                if field.skip.is_some() {
+                if field.skip.is_present() {
                     // Skip serializing this field.
                     return quote!();
                 }
@@ -157,7 +157,7 @@ fn derive_struct(
                     // Output the fields as a CBOR map.
                     let key = field.to_cbor_key_expr();
 
-                    if field.optional.is_some() {
+                    if field.optional.is_present() {
                         // If the field is optional then we can omit it when it is equal to the
                         // null value.
                         match &field.skip_serializing_if {
@@ -206,7 +206,7 @@ fn derive_struct(
 
 fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
     // Make sure the transparent attribute cannot be used on an enum.
-    if enc.transparent.is_some() {
+    if enc.transparent.is_present() {
         enc.ident
             .span()
             .unwrap()
@@ -223,7 +223,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
     }
 
     let maybe_wrap_map = |key, inner| {
-        if enc.untagged.is_some() {
+        if enc.untagged.is_present() {
             // Untagged enum with just the inner type.
             quote!( #inner )
         } else {
@@ -240,12 +240,12 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
 
             let encode_fn = quote_spanned!(variant.ident.span()=> __cbor::Encode::into_cbor_value);
 
-            if variant.skip.is_some() {
+            if variant.skip.is_present() {
                 // If we need to skip serializing this variant, serialize into undefined.
                 return (quote! { Self::#variant_ident { .. } => __cbor::Value::Simple(__cbor::SimpleValue::Undefined), }, true);
             }
 
-            if variant.embed.is_some() {
+            if variant.embed.is_present() {
                 // If we need to embed this variant, just serialize the embedded enum directly.
                 if !variant.fields.is_newtype() {
                     variant.ident.span().unwrap().error("cannot use embed attribute on non-newtype variant".to_string()).emit();
@@ -255,7 +255,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                 return (quote! { Self::#variant_ident(inner) => #encode_fn(inner), }, true);
             }
 
-            if variant.fields.is_unit() && !variant.as_struct.is_some() {
+            if variant.fields.is_unit() && !variant.as_struct.is_present() {
                 // For unit variants, just return the CBOR-encoded key or the discriminant if any.
                 match variant.discriminant {
                     Some(ref expr) => {
@@ -298,8 +298,8 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                     let derived = derive_struct(
                         &variant.ident,
                         false,
-                        variant.as_array.is_some(),
-                        variant.as_struct.is_some(),
+                        variant.as_array.is_present(),
+                        variant.as_struct.is_present(),
                         variant.fields.as_ref(),
                         Some(idents),
                     );
@@ -318,7 +318,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
         .unzip();
 
     // Check if all variants encode as a map.
-    let all_encode_as_map = enc.untagged.is_none() && maybe_encode_as_map.iter().all(|x| *x);
+    let all_encode_as_map = !enc.untagged.is_present() && maybe_encode_as_map.iter().all(|x| *x);
 
     DeriveResult {
         enc_impl: quote! {
