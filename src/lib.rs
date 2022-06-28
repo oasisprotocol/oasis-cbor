@@ -1,6 +1,4 @@
 //! Convenience functions for dealing with CBOR encodings.
-//!
-//! This is currently a thin wrapper around the `sk-cbor` crate.
 #![feature(min_specialization)]
 #![feature(trait_alias)]
 
@@ -12,7 +10,7 @@ pub mod macros;
 pub mod serde;
 
 pub use oasis_cbor_derive::*; // Re-export the support proc-macros.
-pub use sk_cbor::*;
+pub use oasis_cbor_value::*;
 use thiserror::Error;
 
 // Re-export traits.

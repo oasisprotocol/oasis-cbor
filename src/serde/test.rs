@@ -98,7 +98,7 @@ fn test_simple_types() {
 
 #[test]
 fn test_float() {
-    // Floats are not supported by sk_cbor; make sure we enforce that at the serde layer already.
+    // Floats are not supported; make sure we enforce that at the serde layer already.
 
     // Encoding.
     let err = crate::serde::to_value(&1.0)
@@ -118,7 +118,7 @@ fn test_float() {
         matches!(
             err,
             crate::serde::Error::ByteDecoder(
-                sk_cbor::reader::DecoderError::UnsupportedFloatingPointValue
+                crate::reader::DecoderError::UnsupportedFloatingPointValue
             )
         ),
         "f32 should be marked as unsupported, but error was {:?}",
@@ -156,14 +156,11 @@ fn test_tuple() {
 #[test]
 fn test_map() {
     // string keys
-    let mut m = std::collections::HashMap::new();
+    let mut m = std::collections::BTreeMap::new();
     m.insert("foo".to_string(), "one".to_string());
     m.insert("bar".to_string(), "two".to_string());
     m.insert("baz".to_string(), "three".to_string());
     m.insert("quux".to_string(), "four".to_string());
-    // There's no guarantee about the order of the keys inside the Value::Map that is produced
-    // by serialization. The test is stable only because Value::Map's equality operator
-    // ignores the order.
     assert_compat_roundtrip(
         m,
         Value::Map(vec![
@@ -175,7 +172,7 @@ fn test_map() {
     );
 
     // int keys
-    let mut m = std::collections::HashMap::new();
+    let mut m = std::collections::BTreeMap::new();
     m.insert(2u8, 4u8);
     m.insert(1, 5);
     m.insert(3, 3);
@@ -277,9 +274,9 @@ mod enums {
             Value::Map(vec![(
                 str!("S"),
                 Value::Map(vec![
-                    (str!("b"), Value::Unsigned(30)),
-                    (str!("g"), Value::Unsigned(20)),
                     (str!("r"), Value::Unsigned(10)),
+                    (str!("g"), Value::Unsigned(20)),
+                    (str!("b"), Value::Unsigned(30)),
                 ]),
             )]),
         );
@@ -340,9 +337,9 @@ mod structs {
                 b: 30,
             },
             Value::Map(vec![
-                (str!("b"), Value::Unsigned(30)),
-                (str!("g"), Value::Unsigned(20)),
                 (str!("r"), Value::Unsigned(10)),
+                (str!("g"), Value::Unsigned(20)),
+                (str!("b"), Value::Unsigned(30)),
             ]),
         );
     }

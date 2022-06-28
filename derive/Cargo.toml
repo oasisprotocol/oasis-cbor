@@ -13,9 +13,10 @@ categories = ["encoding"]
 proc-macro = true
 
 [dependencies]
+oasis-cbor-value = { path = "../value", version = "0.3.1" }
+
 darling = "0.14.1"
 proc-macro2 = "1.0.27"
 quote = "1.0.9"
 syn = "1.0.73"
-sk-cbor = "0.1.2"
 proc-macro-crate = "1.0.0"
