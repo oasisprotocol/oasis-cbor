@@ -14,8 +14,9 @@
 
 //! Functionality for serializing CBOR values into bytes.
 
-use super::values::{Constants, Value};
 use alloc::vec::Vec;
+
+use super::values::{Constants, Value};
 
 /// Possible errors from a serialization operation.
 #[derive(Debug, PartialEq)]
@@ -119,12 +120,13 @@ impl<'a> Writer<'a> {
 
 #[cfg(test)]
 mod test {
+    use alloc::vec;
+
     use super::*;
     use crate::{
         cbor_array, cbor_array_vec, cbor_bytes, cbor_false, cbor_int, cbor_map, cbor_null,
         cbor_tagged, cbor_text, cbor_true, cbor_undefined,
     };
-    use alloc::vec;
 
     fn write_return(value: Value) -> Option<Vec<u8>> {
         let mut encoded_cbor = Vec::new();

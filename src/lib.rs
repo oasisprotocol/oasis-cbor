@@ -52,6 +52,15 @@ where
     T::try_from_cbor_value_default(value)
 }
 
+/// Convert CBOR-encoded data into the given type using non-strict decoding.
+pub fn from_slice_non_strict<T>(data: &[u8]) -> Result<T, DecodeError>
+where
+    T: Decode,
+{
+    let value = reader::read_nested_non_strict(data, Some(MAX_NESTING_LEVEL))?;
+    T::try_from_cbor_value_default(value)
+}
+
 /// Convert high-level CBOR representation into the given type.
 ///
 /// This is the same as calling `T::try_from_cbor_value(value)`.

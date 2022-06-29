@@ -14,12 +14,12 @@
 
 //! Functionality for deserializing CBOR data into values.
 
+use alloc::{str, vec::Vec};
+
 use super::values::{Constants, SimpleValue, Value};
 use crate::{
     cbor_array_vec, cbor_bytes_lit, cbor_map_collection, cbor_tagged, cbor_text, cbor_unsigned,
 };
-use alloc::str;
-use alloc::vec::Vec;
 
 /// Possible errors from a deserialization operation.
 #[derive(Debug, PartialEq)]
@@ -34,7 +34,6 @@ pub enum DecoderError {
     NonMinimalCborEncoding,
     UnsupportedSimpleValue,
     UnsupportedFloatingPointValue,
-    OutOfRangeIntegerValue,
 }
 
 /// Deserialize CBOR binary data to produce a single [`Value`], expecting that there is no additional data.
@@ -56,13 +55,34 @@ pub fn read_nested(encoded_cbor: &[u8], max_nest: Option<i8>) -> Result<Value, D
     Ok(value)
 }
 
+/// Deserialize CBOR binary data to produce a single [`Value`].  If `max_nest` is `Some(max)`, then
+/// nested structures are only supported up to the given limit (returning
+/// [`DecoderError::TooMuchNesting`] if the limit is hit).
+pub fn read_nested_non_strict(
+    encoded_cbor: &[u8],
+    max_nest: Option<i8>,
+) -> Result<Value, DecoderError> {
+    let mut reader = Reader::new_non_strict(encoded_cbor);
+    let value = reader.decode_complete_data_item(max_nest)?;
+    Ok(value)
+}
+
 struct Reader<'a> {
+    non_strict: bool,
     remaining_cbor: &'a [u8],
 }
 
 impl<'a> Reader<'a> {
     pub fn new(cbor: &'a [u8]) -> Reader<'a> {
         Reader {
+            non_strict: false,
+            remaining_cbor: cbor,
+        }
+    }
+
+    pub fn new_non_strict(cbor: &'a [u8]) -> Reader<'a> {
+        Reader {
+            non_strict: true,
             remaining_cbor: cbor,
         }
     }
@@ -123,8 +143,9 @@ impl<'a> Reader<'a> {
                     size_value <<= 8;
                     size_value += *byte as u64;
                 }
-                if (additional_bytes_num == 1 && size_value < 24)
-                    || size_value < (1u64 << (8 * (additional_bytes_num >> 1)))
+                if ((additional_bytes_num == 1 && size_value < 24)
+                    || size_value < (1u64 << (8 * (additional_bytes_num >> 1))))
+                    && !self.non_strict
                 {
                     Err(DecoderError::NonMinimalCborEncoding)
                 } else {
@@ -140,12 +161,7 @@ impl<'a> Reader<'a> {
     }
 
     fn decode_value_to_negative(&self, size_value: u64) -> Result<Value, DecoderError> {
-        let signed_size = size_value as i64;
-        if signed_size < 0 {
-            Err(DecoderError::OutOfRangeIntegerValue)
-        } else {
-            Ok(Value::Negative(-(size_value as i64) - 1))
-        }
+        Ok(Value::Negative(-(size_value as i128) - 1))
     }
 
     fn read_byte_string_content(&mut self, size_value: u64) -> Result<Value, DecoderError> {
@@ -187,7 +203,7 @@ impl<'a> Reader<'a> {
         for _ in 0..size_value {
             let key = self.decode_complete_data_item(remaining_depth.map(|d| d - 1))?;
             if let Some(last_item) = value_map.last() {
-                if last_item.0 >= key {
+                if last_item.0 >= key && !self.non_strict {
                     return Err(DecoderError::OutOfOrderKey);
                 }
             }
@@ -215,6 +231,7 @@ impl<'a> Reader<'a> {
     ) -> Result<Value, DecoderError> {
         if additional_info > Constants::ADDITIONAL_INFORMATION_MAX_INT
             && additional_info != Constants::ADDITIONAL_INFORMATION_1_BYTE
+            && !self.non_strict
         {
             // TODO(kaczmarczyck) the chromium C++ reference allows equality to 24 here, why?
             // Also, why not just disallow ANY additional_info != size_value?
@@ -222,6 +239,7 @@ impl<'a> Reader<'a> {
         }
         match SimpleValue::from_integer(size_value) {
             Some(simple_value) => Ok(Value::Simple(simple_value)),
+            None if self.non_strict => Ok(Value::Simple(SimpleValue::Undefined)),
             None => Err(DecoderError::UnsupportedSimpleValue),
         }
     }
@@ -229,12 +247,13 @@ impl<'a> Reader<'a> {
 
 #[cfg(test)]
 mod test {
+    use alloc::vec;
+
     use super::*;
     use crate::{
         cbor_array, cbor_bytes, cbor_false, cbor_int, cbor_map, cbor_null, cbor_true,
         cbor_undefined,
     };
-    use alloc::vec;
 
     #[test]
     fn test_read_unsigned() {
@@ -604,7 +623,7 @@ mod test {
             vec![0x3B, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
         ];
         for cbor in cases {
-            assert_eq!(read(&cbor), Err(DecoderError::OutOfRangeIntegerValue));
+            assert_eq!(read(&cbor), Ok(Value::Negative(-9223372036854775809)));
         }
     }
 

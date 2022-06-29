@@ -14,9 +14,11 @@
 
 //! Types for expressing CBOR values.
 
-use alloc::boxed::Box;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::cmp::Ordering;
 
 /// Possible CBOR values.
@@ -25,7 +27,7 @@ pub enum Value {
     /// Unsigned integer value (uint).
     Unsigned(u64),
     /// Signed integer value (nint). Only 63 bits of information are used here.
-    Negative(i64),
+    Negative(i128),
     /// Byte string (bstr).
     ByteString(Vec<u8>),
     /// Text string (tstr).
@@ -77,7 +79,7 @@ impl Value {
         if int >= 0 {
             Value::Unsigned(int as u64)
         } else {
-            Value::Negative(int)
+            Value::Negative(int as i128)
         }
     }
 
@@ -284,9 +286,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use alloc::vec;
+
     use super::*;
     use crate::{cbor_array, cbor_bool, cbor_bytes, cbor_int, cbor_map, cbor_tagged, cbor_text};
-    use alloc::vec;
 
     #[test]
     fn test_value_ordering() {

@@ -14,10 +14,10 @@
 
 //! Convenience macros for working with CBOR values.
 
-use crate::values::Value;
 use alloc::vec;
-use core::cmp::Ordering;
-use core::iter::Peekable;
+use core::{cmp::Ordering, iter::Peekable};
+
+use crate::values::Value;
 
 /// This macro generates code to extract multiple values from a `Vec<(Value, Value)>` at once
 /// in an optimized manner, consuming the input vector.
@@ -362,10 +362,9 @@ macro_rules! cbor_bytes_lit {
 
 #[cfg(test)]
 mod test {
+    use alloc::{string::String, vec, vec::Vec};
+
     use super::super::values::{SimpleValue, Value};
-    use alloc::string::String;
-    use alloc::vec;
-    use alloc::vec::Vec;
 
     #[test]
     fn test_cbor_simple_values() {
@@ -396,7 +395,10 @@ mod test {
     fn test_cbor_int_negative() {
         assert_eq!(cbor_int!(-1), Value::Negative(-1));
         assert_eq!(cbor_int!(-123456), Value::Negative(-123456));
-        assert_eq!(cbor_int!(core::i64::MIN), Value::Negative(core::i64::MIN));
+        assert_eq!(
+            cbor_int!(core::i64::MIN),
+            Value::Negative(core::i64::MIN as i128)
+        );
     }
 
     #[test]
@@ -414,8 +416,8 @@ mod test {
             core::u64::MAX,
         ];
         let b = Value::Array(vec![
-            Value::Negative(core::i64::MIN),
-            Value::Negative(core::i32::MIN as i64),
+            Value::Negative(core::i64::MIN as i128),
+            Value::Negative(core::i32::MIN as i128),
             Value::Negative(-123456),
             Value::Negative(-1),
             Value::Unsigned(0),
