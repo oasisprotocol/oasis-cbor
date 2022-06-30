@@ -1,6 +1,4 @@
 //! Convenience functions for dealing with CBOR encodings.
-//!
-//! This is currently a thin wrapper around the `sk-cbor` crate.
 #![feature(min_specialization)]
 #![feature(trait_alias)]
 
@@ -12,7 +10,7 @@ pub mod macros;
 pub mod serde;
 
 pub use oasis_cbor_derive::*; // Re-export the support proc-macros.
-pub use sk_cbor::*;
+pub use oasis_cbor_value::*;
 use thiserror::Error;
 
 // Re-export traits.
@@ -51,6 +49,15 @@ where
     T: Decode,
 {
     let value = reader::read_nested(data, Some(MAX_NESTING_LEVEL))?;
+    T::try_from_cbor_value_default(value)
+}
+
+/// Convert CBOR-encoded data into the given type using non-strict decoding.
+pub fn from_slice_non_strict<T>(data: &[u8]) -> Result<T, DecodeError>
+where
+    T: Decode,
+{
+    let value = reader::read_nested_non_strict(data, Some(MAX_NESTING_LEVEL))?;
     T::try_from_cbor_value_default(value)
 }
 

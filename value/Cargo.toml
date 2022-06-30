@@ -1,0 +1,18 @@
+[package]
+name = "oasis-cbor-value"
+version = "0.3.1"
+authors = [
+  "Fabian Kaczmarczyck <kaczmarczyck@google.com>",
+  "Guillaume Endignoux <guillaumee@google.com>",
+  "Jean-Michel Picod <jmichel@google.com>",
+  "David Drysdale <drysdale@google.com>",
+  "Oasis Protocol Foundation <info@oasisprotocol.org>",
+]
+license = "Apache-2.0"
+edition = "2018"
+description = "CBOR parsing library"
+repository = "https://github.com/oasisprotocol/oasis-cbor"
+keywords = ["cbor", "serialization", "no_std"]
+categories = ["encoding"]
+
+[dependencies]

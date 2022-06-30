@@ -2,7 +2,7 @@
 use darling::{util::Flag, Error, FromDeriveInput, FromField, FromVariant, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
-use sk_cbor::values::IntoCborValue;
+use oasis_cbor_value::values::IntoCborValue;
 use syn::{Expr, Generics, Ident, Lit, Path, Type};
 
 #[derive(FromDeriveInput)]
@@ -61,7 +61,7 @@ impl Key {
         }
     }
 
-    fn to_cbor_key(&self) -> sk_cbor::Value {
+    fn to_cbor_key(&self) -> oasis_cbor_value::Value {
         match self {
             Key::String(ref v) => v.clone().into_cbor_value(),
             Key::Integer(ref v) => v.into_cbor_value(),
@@ -121,7 +121,7 @@ impl Field {
             })
     }
 
-    pub fn to_cbor_key(&self) -> sk_cbor::Value {
+    pub fn to_cbor_key(&self) -> oasis_cbor_value::Value {
         self.rename
             .as_ref()
             .map(Key::to_cbor_key)

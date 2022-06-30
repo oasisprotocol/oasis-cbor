@@ -455,6 +455,16 @@ fn test_field_reorder() {
     ];
     let res: Result<B, _> = cbor::from_slice(&b_reorder);
     assert!(matches!(res, Err(cbor::DecodeError::ParsingFailed)));
+
+    // Should work fine in non-strict mode.
+    let res: B = cbor::from_slice_non_strict(&b_reorder).unwrap();
+    assert_eq!(
+        res,
+        B {
+            foo: 42,
+            bytes: vec![0x01]
+        }
+    );
 }
 
 #[test]

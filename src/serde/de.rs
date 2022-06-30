@@ -4,10 +4,9 @@ use serde::{
     de::{self, Error as _, Visitor},
     Deserializer as _,
 };
-use sk_cbor::SimpleValue;
 
 use super::error::{unexpected, Error};
-use crate::{Decode as _, Value};
+use crate::{Decode as _, SimpleValue, Value};
 
 pub(crate) struct Deserializer(Value);
 
@@ -26,17 +25,17 @@ impl<'de> de::Deserializer<'de> for Deserializer {
     {
         let value = match self.0 {
             Value::Unsigned(n) => visitor.visit_u64(n),
-            Value::Negative(n) => visitor.visit_i64(n),
+            Value::Negative(n) => visitor.visit_i64(n as i64),
             Value::ByteString(bytes) => visitor.visit_byte_buf(bytes),
             Value::TextString(s) => visitor.visit_string(s),
             Value::Array(_) => self.deserialize_seq(visitor),
             Value::Map(_) => self.deserialize_map(visitor),
             Value::Tag(_, _) => Err(Error::UnsupportedType("cbor tag")),
             Value::Simple(v) => match v {
-                sk_cbor::SimpleValue::FalseValue => visitor.visit_bool(false),
-                sk_cbor::SimpleValue::TrueValue => visitor.visit_bool(true),
-                sk_cbor::SimpleValue::NullValue => visitor.visit_unit(),
-                sk_cbor::SimpleValue::Undefined => visitor.visit_unit(),
+                SimpleValue::FalseValue => visitor.visit_bool(false),
+                SimpleValue::TrueValue => visitor.visit_bool(true),
+                SimpleValue::NullValue => visitor.visit_unit(),
+                SimpleValue::Undefined => visitor.visit_unit(),
             },
         };
         value
