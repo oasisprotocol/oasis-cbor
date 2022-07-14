@@ -1,13 +1,13 @@
 //! Common definitions for both encoder and decoder.
 use darling::{util::Flag, Error, FromDeriveInput, FromField, FromVariant, Result};
+use oasis_cbor_value::values::IntoCborValue;
 use proc_macro2::TokenStream;
 use quote::quote;
-use oasis_cbor_value::values::IntoCborValue;
 use syn::{Expr, Generics, Ident, Lit, Path, Type};
 
 #[derive(FromDeriveInput)]
 #[darling(supports(any), attributes(cbor))]
-#[darling(and_then = "Self::exclusive_default_and_with_default")]
+#[darling(and_then = "Self::validate")]
 pub struct Codable {
     pub ident: Ident,
     pub generics: Generics,
@@ -19,6 +19,9 @@ pub struct Codable {
 
     #[darling(rename = "untagged")]
     pub untagged: Flag,
+
+    #[darling(rename = "tag")]
+    pub tag: Option<Key>,
 
     #[darling(rename = "as_array")]
     pub as_array: Flag,
@@ -34,13 +37,18 @@ pub struct Codable {
 }
 
 impl Codable {
-    fn exclusive_default_and_with_default(self) -> Result<Self> {
+    fn validate(self) -> Result<Self> {
         if self.no_default.is_present() && self.with_default.is_present() {
-            Err(Error::custom("Cannot set no_default and with_default")
-                .with_span(&self.with_default))
-        } else {
-            Ok(self)
+            return Err(Error::custom("Cannot set no_default and with_default")
+                .with_span(&self.with_default));
         }
+
+        if self.untagged.is_present() && self.tag.is_some() {
+            return Err(Error::custom("Cannot set untagged and tag")
+                .with_span(&self.untagged));
+        }
+
+        Ok(self)
     }
 }
 
@@ -50,7 +58,7 @@ pub enum Key {
 }
 
 impl Key {
-    fn to_cbor_key_expr(&self) -> TokenStream {
+    pub fn to_cbor_key_expr(&self) -> TokenStream {
         match self {
             Key::String(ref v) => {
                 quote!( __cbor::values::IntoCborValue::into_cbor_value(#v) )
@@ -61,7 +69,7 @@ impl Key {
         }
     }
 
-    fn to_cbor_key(&self) -> oasis_cbor_value::Value {
+    pub fn to_cbor_key(&self) -> oasis_cbor_value::Value {
         match self {
             Key::String(ref v) => v.clone().into_cbor_value(),
             Key::Integer(ref v) => v.into_cbor_value(),
@@ -157,6 +165,9 @@ pub struct Variant {
 
     #[darling(rename = "allow_unknown")]
     pub allow_unknown: Flag,
+
+    #[darling(rename = "missing")]
+    pub missing: Flag,
 }
 
 impl Variant {

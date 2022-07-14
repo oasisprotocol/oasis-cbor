@@ -18,6 +18,14 @@ pub trait Encode {
 
 /// Trait for types that always encode as CBOR maps.
 pub trait EncodeAsMap: Encode {
+    /// Encode the type into a CBOR Map.
+    fn into_cbor_value_map(self) -> Value
+    where
+        Self: Sized,
+    {
+        self.into_cbor_value()
+    }
+
     /// Encode the type into a CBOR Map, returning the map items.
     fn into_cbor_map(self) -> Vec<(Value, Value)>
     where

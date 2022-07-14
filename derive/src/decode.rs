@@ -217,7 +217,7 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
 
     // Generate decoders for all unit variants.
     let unit_decoders = variants.iter().filter_map(|variant| {
-        if !variant.fields.is_unit() || variant.as_struct.is_present() {
+        if !variant.fields.is_unit() || variant.as_struct.is_present() || dec.tag.is_some() {
             return None;
         }
         if variant.skip.is_present() {
@@ -246,10 +246,11 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
     });
 
     // Generate decoders for all non-unit variants.
+    let mut have_missing_variant = false;
     let non_unit_decoders: Vec<_> = variants
         .iter()
         .filter_map(|variant| {
-            if variant.fields.is_unit() && !variant.as_struct.is_present() {
+            if variant.fields.is_unit() && !variant.as_struct.is_present() && dec.tag.is_none() {
                 return None;
             }
             if variant.skip.is_present() {
@@ -268,6 +269,16 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                     quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value_default);
                 quote!(Self::#variant_ident(#decode_fn(value)?))
             } else {
+                if dec.tag.is_some() && (variant.as_array.is_present() || variant.fields.is_tuple()) {
+                    variant
+                        .ident
+                        .span()
+                        .unwrap()
+                        .error("cannot encode variant as array in internally tagged enums".to_string())
+                        .emit();
+                    return None;
+                }
+
                 // Derive inner decoder.
                 let inner = derive_struct(
                     &variant.ident,
@@ -280,11 +291,31 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                 quote!({ #inner })
             };
 
-            Some(quote! {
-                if key == #key {
-                    return Ok(#decoder);
+            if variant.missing.is_present() {
+                // This is a fallback variant for when the tag is missing.
+                if have_missing_variant {
+                    variant
+                        .ident
+                        .span()
+                        .unwrap()
+                        .error("multiple variants specify the missing attribute".to_string())
+                        .emit();
+                    return None;
                 }
-            })
+                have_missing_variant = true;
+
+                Some(quote! {
+                    if key == #key || key == __cbor::Value::Simple(__cbor::SimpleValue::Undefined) {
+                        return Ok(#decoder);
+                    }
+                })
+            } else {
+                Some(quote! {
+                    if key == #key {
+                        return Ok(#decoder);
+                    }
+                })
+            }
         })
         .collect();
 
@@ -309,6 +340,16 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
                 return None;
             }
 
+            if dec.tag.is_some() {
+                variant
+                    .ident
+                    .span()
+                    .unwrap()
+                    .error("cannot use embed attribute on internally tagged enum".to_string())
+                    .emit();
+                return None;
+            }
+
             let variant_ident = &variant.ident;
             let decode_fn =
                 quote_spanned!(variant.ident.span()=> __cbor::Decode::try_from_cbor_value_default);
@@ -321,6 +362,33 @@ fn derive_enum(dec: &Codable, variants: Vec<&Variant>) -> TokenStream {
             })
         })
         .collect();
+
+    // Handle internally tagged enums.
+    if let Some(tag) = &dec.tag {
+        let tag = tag.to_cbor_key_expr();
+
+        return quote! {
+            match value {
+                __cbor::Value::Map(mut map) => {
+                    let key = if let Some((index, _)) = map
+                        .iter()
+                        .enumerate()
+                        .find(|(_, v)| v.0 == #tag)
+                    {
+                        map.remove(index).1
+                    } else {
+                        __cbor::Value::Simple(__cbor::SimpleValue::Undefined)
+                    };
+                    let value = __cbor::Value::Map(map);
+
+                    #(#non_unit_decoders)*
+
+                    Err(__cbor::DecodeError::UnknownField)
+                },
+                _ => Err(__cbor::DecodeError::UnexpectedType)
+            }
+        };
+    }
 
     // In case there are no non-unit decoders, just omit the match.
     if non_unit_decoders.is_empty() {
