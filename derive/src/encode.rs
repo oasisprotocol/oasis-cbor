@@ -226,6 +226,18 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
         if enc.untagged.is_present() {
             // Untagged enum with just the inner type.
             quote!( #inner )
+        } else if let Some(tag) = &enc.tag {
+            // Internally tagged enum.
+            let tag = tag.to_cbor_key_expr();
+
+            quote!({
+                let mut items = match #inner {
+                    __cbor::Value::Map(items) => items,
+                    _ => unreachable!(),
+                };
+                items.push((#tag, #key));
+                __cbor::Value::Map(items)
+            })
         } else {
             // Regular tagged enum where the tag is stored as a map key.
             quote!(__cbor::Value::Map(vec![(#key, #inner)]))
@@ -238,7 +250,11 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
             let variant_ident = &variant.ident;
             let key = variant.to_cbor_key_expr();
 
-            let encode_fn = quote_spanned!(variant.ident.span()=> __cbor::Encode::into_cbor_value);
+            let encode_fn = if enc.tag.is_some() {
+                quote_spanned!(variant.ident.span()=> __cbor::EncodeAsMap::into_cbor_value_map)
+            } else {
+                quote_spanned!(variant.ident.span()=> __cbor::Encode::into_cbor_value)
+            };
 
             if variant.skip.is_present() {
                 // If we need to skip serializing this variant, serialize into undefined.
@@ -251,11 +267,15 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                     variant.ident.span().unwrap().error("cannot use embed attribute on non-newtype variant".to_string()).emit();
                     return (quote!(), false);
                 }
+                if enc.tag.is_some() {
+                    variant.ident.span().unwrap().error("cannot use embed attribute on internally tagged enum".to_string()).emit();
+                    return (quote!(), false);
+                }
                 // TODO: It would be great if this somehow ensured that there was no overlap etc.
                 return (quote! { Self::#variant_ident(inner) => #encode_fn(inner), }, true);
             }
 
-            if variant.fields.is_unit() && !variant.as_struct.is_present() {
+            if variant.fields.is_unit() && !variant.as_struct.is_present() && enc.tag.is_none() {
                 // For unit variants, just return the CBOR-encoded key or the discriminant if any.
                 match variant.discriminant {
                     Some(ref expr) => {
@@ -293,6 +313,11 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                             (binding, ident)
                         })
                         .unzip();
+
+                    if enc.tag.is_some() && (variant.as_array.is_present() || variant.fields.is_tuple()) {
+                        variant.ident.span().unwrap().error("cannot encode variant as array in internally tagged enums".to_string()).emit();
+                        return (quote!(), false);
+                    }
 
                     // Derive encoder and wrap it in a map.
                     let derived = derive_struct(

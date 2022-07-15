@@ -1,7 +1,7 @@
 [package]
 name = "oasis-cbor"
 description = "Rust CBOR serialization built as a thin wrapper around sk-cbor."
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Oasis Protocol Foundation <info@oasisprotocol.org>"]
 repository = "https://github.com/oasisprotocol/oasis-cbor"
 readme = "README.md"
@@ -11,8 +11,8 @@ keywords = ["cbor", "serialization"]
 categories = ["encoding"]
 
 [dependencies]
-oasis-cbor-value = { path = "value", version = "0.4.0" }
-oasis-cbor-derive = { path = "derive", version = "0.4.0" }
+oasis-cbor-value = { path = "value", version = "0.5.0" }
+oasis-cbor-derive = { path = "derive", version = "0.5.0" }
 
 # Third party.
 impl-trait-for-tuples = "0.2.1"

@@ -207,6 +207,32 @@ enum EmbedChild {
     C(String),
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Decode, cbor::Encode)]
+#[cbor(tag = "v")]
+enum InternallyTagged {
+    #[cbor(rename = 0, missing)]
+    V0 { foo: u64 },
+
+    #[cbor(rename = 1)]
+    V1 { bar: u64 },
+
+    #[cbor(rename = 2)]
+    V2(Order),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, cbor::Decode, cbor::Encode)]
+#[cbor(tag = "v")]
+enum InternallyTaggedNoMissing {
+    #[cbor(rename = 0)]
+    V0 { foo: u64 },
+
+    #[cbor(rename = 1)]
+    V1 { bar: u64 },
+
+    #[cbor(rename = 2)]
+    V2(Order),
+}
+
 #[test]
 fn test_round_trip_complex() {
     let a = A {
@@ -618,6 +644,49 @@ fn test_enum_untagged() {
             0x0B, // unsigned(11)
         ]
     );
+}
+
+#[test]
+fn test_enum_internally_tagged() {
+    let it = InternallyTagged::V1 { bar: 42 };
+    let enc = cbor::to_vec(it.clone());
+    assert_eq!(
+        enc,
+        vec![
+            // {"v": 1, "bar": 42}
+            0xA2, // map(2)
+            0x61, // text(1)
+            0x76, // "v"
+            0x01, // unsigned(1)
+            0x63, // text(3)
+            0x62, 0x61, 0x72, // "bar"
+            0x18, 0x2A, // unsigned(42)
+        ],
+        "should encode as expected"
+    );
+
+    let dec: InternallyTagged = cbor::from_slice(&enc).expect("serialization should round-trip");
+    assert_eq!(dec, it, "serialization should round-trip");
+
+    // With a missing tag.
+    let enc = vec![
+        // {"foo": 42}
+        0xA1, // map(1)
+        0x63, // text(3)
+        0x66, 0x6F, 0x6F, // "foo"
+        0x18, 0x2A, // unsigned(42)
+    ];
+    let dec: InternallyTagged =
+        cbor::from_slice(&enc).expect("missing tag deserialization should work");
+    assert_eq!(
+        dec,
+        InternallyTagged::V0 { foo: 42 },
+        "deserialization should be correct"
+    );
+
+    // With a missing tag but without any variant with the missing attribute.
+    cbor::from_slice::<InternallyTaggedNoMissing>(&enc)
+        .expect_err("missing tag deserialization without any missing variant should fail");
 }
 
 #[test]
