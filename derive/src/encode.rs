@@ -222,8 +222,8 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
         };
     }
 
-    let maybe_wrap_map = |key, inner| {
-        if enc.untagged.is_present() {
+    let maybe_wrap_map = |variant: &Variant, key, inner| {
+        if enc.untagged.is_present() || variant.missing.is_present() {
             // Untagged enum with just the inner type.
             quote!( #inner )
         } else if let Some(tag) = &enc.tag {
@@ -289,7 +289,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                 if variant.fields.is_newtype() {
                     // Newtype variants map the key directly to the inner value as if transparent was used.
                     let inner = quote!(#encode_fn(inner));
-                    let wrapper = maybe_wrap_map(key, inner);
+                    let wrapper = maybe_wrap_map(variant, key, inner);
 
                     (quote! { Self::#variant_ident(inner) => #wrapper, }, true)
                 } else {
@@ -329,7 +329,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                         Some(idents),
                     );
                     let inner = derived.enc_impl;
-                    let wrapper = maybe_wrap_map(key, quote!( {#inner} ));
+                    let wrapper = maybe_wrap_map(variant, key, quote!( {#inner} ));
 
                     (
                         quote! {
