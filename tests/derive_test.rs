@@ -684,6 +684,10 @@ fn test_enum_internally_tagged() {
         "deserialization should be correct"
     );
 
+    // Encoding of the missing variant should not include the tag.
+    let enc_rt = cbor::to_vec(dec);
+    assert_eq!(enc_rt, enc, "missing tag encoding should round-trip");
+
     // With a missing tag but without any variant with the missing attribute.
     cbor::from_slice::<InternallyTaggedNoMissing>(&enc)
         .expect_err("missing tag deserialization without any missing variant should fail");
