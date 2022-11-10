@@ -1,6 +1,6 @@
 [package]
 name = "oasis-cbor-value"
-version = "0.5.0"
+version = "0.5.1"
 authors = [
   "Fabian Kaczmarczyck <kaczmarczyck@google.com>",
   "Guillaume Endignoux <guillaumee@google.com>",
