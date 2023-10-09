@@ -10,6 +10,7 @@ use crate::{
 
 struct DeriveResult {
     enc_impl: TokenStream,
+    opt_enc_impl: TokenStream,
     encode_as_map: bool,
 }
 
@@ -17,6 +18,7 @@ impl DeriveResult {
     fn empty() -> Self {
         Self {
             enc_impl: quote!({}),
+            opt_enc_impl: quote!({}),
             encode_as_map: false,
         }
     }
@@ -45,6 +47,7 @@ pub fn derive(input: DeriveInput) -> TokenStream {
     let enc_ty_ident = &enc.ident;
     let (imp, ty, wher) = enc.generics.split_for_impl();
     let enc_impl = derived.enc_impl;
+    let opt_enc_impl = derived.opt_enc_impl;
 
     // Implement the EncodeAsMap marker trait in case the type is known to encode as a map. This
     // allows operations to only operate on such types.
@@ -65,6 +68,10 @@ pub fn derive(input: DeriveInput) -> TokenStream {
             fn into_cbor_value(self) -> __cbor::Value {
                 #enc_impl
             }
+
+             fn into_optional_cbor_value(self) -> Option<__cbor::Value> {
+                #opt_enc_impl
+             }
         }
 
         #encode_as_map
@@ -82,6 +89,7 @@ fn derive_struct(
     if fields.is_unit() && !unit_as_struct {
         return DeriveResult {
             enc_impl: quote! { __cbor::Value::Simple(__cbor::SimpleValue::NullValue) },
+            opt_enc_impl: quote! { None },
             encode_as_map: false,
         };
     }
@@ -99,9 +107,11 @@ fn derive_struct(
         }
 
         let encode_fn = quote_spanned!(ident.span()=> __cbor::Encode::into_cbor_value);
+        let opt_encode_fn = quote_spanned!(ident.span()=> __cbor::Encode::into_optional_cbor_value);
 
         DeriveResult {
             enc_impl: quote!(#encode_fn(self.0)),
+            opt_enc_impl: quote!(#opt_encode_fn(self.0)),
             encode_as_map: false, // We cannot be sure that the inner type encodes as map.
         }
     } else {
@@ -163,8 +173,8 @@ fn derive_struct(
                         match &field.skip_serializing_if {
                             None => {
                                 quote! {
-                                    if !__cbor::Encode::is_empty(&#field_binding) {
-                                        fields.push((#key, #field_value));
+                                    if let Some(value) = __cbor::Encode::into_optional_cbor_value(#field_binding) {
+                                        fields.push((#key, value));
                                     }
                                 }
                             }
@@ -199,6 +209,10 @@ fn derive_struct(
 
                 #value_ty
             },
+            opt_enc_impl: quote!(match self.into_cbor_value() {
+                __cbor::Value::Map(fields) if fields.is_empty() => None,
+                v => Some(v),
+            }),
             encode_as_map: !as_array,
         }
     }
@@ -218,6 +232,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
     if variants.is_empty() {
         return DeriveResult {
             enc_impl: quote! { __cbor::Value::Simple(__cbor::SimpleValue::NullValue) },
+            opt_enc_impl: quote! { Some(self.into_cbor_value()) },
             encode_as_map: false,
         };
     }
@@ -351,6 +366,7 @@ fn derive_enum(enc: &Codable, variants: Vec<&Variant>) -> DeriveResult {
                 #(#match_arms)*
             }
         },
+        opt_enc_impl: quote! { Some(self.into_cbor_value()) },
         encode_as_map: all_encode_as_map,
     }
 }

@@ -84,6 +84,44 @@ struct WithOptional {
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithNonOptional {
+    bar: String,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithOptionalWithOptional {
+    #[cbor(optional)]
+    foo: WithOptional,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithOptionalWithNonOptional {
+    #[cbor(optional)]
+    foo: WithNonOptional,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithNonOptionalWithOptional {
+    foo: WithOptional,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithNonOptionalWithNonOptional {
+    foo: WithNonOptional,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithOptionalUnit {
+    #[cbor(optional)]
+    foo: Unit,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
+struct WithNonOptionalUnit {
+    foo: Unit,
+}
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 struct Unit;
 
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode)]
@@ -625,6 +663,141 @@ fn test_with_default() {
     let wod = WithOptionalDefault { bar: "".to_owned() };
     let enc = cbor::to_vec(wod);
     assert_eq!(enc, vec![0xA0]);
+}
+
+#[test]
+fn test_with_optional() {
+    // Optional unit struct is not encoded.
+    let value = WithOptionalUnit {
+        ..Default::default()
+    };
+    let cbor = vec![0xA0];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithOptionalUnit = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Non-optional unit struct is encoded as empty.
+    let value = WithNonOptionalUnit {
+        ..Default::default()
+    };
+    let cbor = vec![161, 99, 102, 111, 111, 246];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithNonOptionalUnit = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Optional struct with optional field is not encoded if field is empty.
+    let value = WithOptionalWithOptional {
+        foo: WithOptional {
+            ..Default::default()
+        },
+    };
+    let cbor = vec![0xA0];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithOptionalWithOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Optional struct with optional field is encoded if field is not empty.
+    let value = WithOptionalWithOptional {
+        foo: WithOptional {
+            bar: "bar".to_owned(),
+        },
+    };
+    let cbor = vec![
+        0xA1, 0x63, 0x66, 0x6F, 0x6F, 0xA1, 0x63, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x72,
+    ];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithOptionalWithOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Non-optional struct with optional field is encoded as empty if field is empty.
+    let value = WithNonOptionalWithOptional {
+        foo: WithOptional {
+            ..Default::default()
+        },
+    };
+    let cbor = vec![161, 99, 102, 111, 111, 160];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithNonOptionalWithOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Non-optional struct with optional field is encoded if field is not empty.
+    let value = WithNonOptionalWithOptional {
+        foo: WithOptional {
+            bar: "bar".to_owned(),
+        },
+    };
+    let cbor = vec![
+        0xA1, 0x63, 0x66, 0x6F, 0x6F, 0xA1, 0x63, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x72,
+    ];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithNonOptionalWithOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Optional struct with non-optional field is always encoded.
+    let value = WithOptionalWithNonOptional {
+        foo: WithNonOptional {
+            ..Default::default()
+        },
+    };
+    let cbor = vec![161, 99, 102, 111, 111, 161, 99, 98, 97, 114, 96];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithOptionalWithNonOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    let value = WithOptionalWithNonOptional {
+        foo: WithNonOptional {
+            bar: "bar".to_owned(),
+        },
+    };
+    let cbor = vec![
+        0xA1, 0x63, 0x66, 0x6F, 0x6F, 0xA1, 0x63, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x72,
+    ];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithOptionalWithNonOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    // Non-optional struct with non-optional field is always encoded.
+    let value = WithNonOptionalWithNonOptional {
+        foo: WithNonOptional {
+            ..Default::default()
+        },
+    };
+    let cbor = vec![161, 99, 102, 111, 111, 161, 99, 98, 97, 114, 96];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithNonOptionalWithNonOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
+
+    let value = WithNonOptionalWithNonOptional {
+        foo: WithNonOptional {
+            bar: "bar".to_owned(),
+        },
+    };
+    let cbor = vec![
+        0xA1, 0x63, 0x66, 0x6F, 0x6F, 0xA1, 0x63, 0x62, 0x61, 0x72, 0x63, 0x62, 0x61, 0x72,
+    ];
+
+    let enc = cbor::to_vec(value.clone());
+    assert_eq!(enc, cbor);
+    let dec: WithNonOptionalWithNonOptional = cbor::from_slice(&cbor).unwrap();
+    assert_eq!(value, dec);
 }
 
 #[test]

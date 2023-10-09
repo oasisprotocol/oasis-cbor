@@ -14,6 +14,17 @@ pub trait Encode {
 
     /// Encode the type into a CBOR Value.
     fn into_cbor_value(self) -> Value;
+
+    /// Encode the type into an optional CBOR Value.
+    fn into_optional_cbor_value(self) -> Option<Value>
+    where
+        Self: Sized,
+    {
+        match self.is_empty() {
+            true => None,
+            false => Some(self.into_cbor_value()),
+        }
+    }
 }
 
 /// Trait for types that always encode as CBOR maps.
