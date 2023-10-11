@@ -88,7 +88,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         _name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error> {
-        (&[value]).serialize(self)
+        ([value]).serialize(self)
     }
 
     fn serialize_newtype_variant<T: ?Sized + Serialize>(
@@ -166,7 +166,7 @@ pub(crate) struct SeqSerializer {
     items: Vec<Value>,
 }
 
-impl<'a> ser::SerializeTuple for SeqSerializer {
+impl ser::SerializeTuple for SeqSerializer {
     type Ok = Value;
     type Error = Error;
 
@@ -181,7 +181,7 @@ impl<'a> ser::SerializeTuple for SeqSerializer {
 }
 
 /// The implementation of `SerializeSeq` just forwards to `SerializeTuple`.
-impl<'a> ser::SerializeSeq for SeqSerializer {
+impl ser::SerializeSeq for SeqSerializer {
     type Ok = Value;
     type Error = Error;
 
@@ -198,7 +198,7 @@ pub(crate) struct StructVariantSerializer {
     variant: &'static str,
     fields: Vec<(Value, Value)>,
 }
-impl<'a> ser::SerializeStructVariant for StructVariantSerializer {
+impl ser::SerializeStructVariant for StructVariantSerializer {
     type Ok = Value;
     type Error = Error;
 
@@ -225,7 +225,7 @@ pub(crate) struct TupleVariantSerializer {
     variant: &'static str,
     fields: Vec<Value>,
 }
-impl<'a> ser::SerializeTupleVariant for TupleVariantSerializer {
+impl ser::SerializeTupleVariant for TupleVariantSerializer {
     type Ok = Value;
     type Error = Error;
 
