@@ -635,6 +635,19 @@ fn test_bigint() {
 }
 
 #[test]
+fn test_uint64() {
+    let tcs = vec![
+        (4294967296, vec![0x1b,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00]),
+        (4294967295, vec![0x1b,0x00,0x00,0x00,0x00,0xff,0xff,0xff,0xff])
+    ];
+    for tc in tcs {
+        let v: u64 = tc.0;
+        let dec: u64 = cbor::from_slice(&tc.1).expect("decoding should dsucceed");
+        assert_eq!(v, dec, "decoding should match expected result");
+    }
+}
+
+#[test]
 fn test_unit_struct() {
     let t1 = Unit;
     let enc = cbor::to_vec(t1.clone());
