@@ -249,9 +249,9 @@ impl ser::SerializeTupleStruct for TupleStructSerializer {
     type Ok = Value;
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    fn serialize_field<T>(&mut self, value: &T) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: Serialize + ?Sized,
     {
         self.fields.push(value.serialize(&mut Serializer)?);
         Ok(())
