@@ -320,6 +320,16 @@ impl<T: Decode + Eq + std::hash::Hash> Decode for HashSet<T> {
     }
 }
 
+impl<T: Decode> Decode for Box<T> {
+    fn try_default() -> Result<Self, DecodeError> {
+        T::try_default().map(|v| Box::new(v))
+    }
+
+    fn try_from_cbor_value(value: Value) -> Result<Self, DecodeError> {
+        T::try_from_cbor_value(value).map(|v| Box::new(v))
+    }
+}
+
 impl Decode for () {
     fn try_default() -> Result<Self, DecodeError> {
         Ok(())
