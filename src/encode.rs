@@ -293,6 +293,18 @@ impl<V: Encode> Encode for HashSet<V> {
     }
 }
 
+impl<T: EncodeAsMap> EncodeAsMap for Box<T> {}
+
+impl<T: Encode> Encode for Box<T> {
+    fn is_empty(&self) -> bool {
+        T::is_empty(self)
+    }
+
+    fn into_cbor_value(self) -> Value {
+        T::into_cbor_value(*self)
+    }
+}
+
 impl Encode for () {
     fn is_empty(&self) -> bool {
         true
