@@ -32,11 +32,10 @@ jobs:
           components: rustfmt # rustfmt is required for macros tests.
           override: true
 
-      - name: Install cargo-tarpaulin
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev
-          cargo install cargo-tarpaulin
+      - name: Install tarpaulin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin@0.25.1
 
       - name: Run tests with coverage
         run: |
