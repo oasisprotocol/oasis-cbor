@@ -200,6 +200,7 @@ struct Order {
     thirdd: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
 enum OrderEnum {
     Foo {
@@ -270,6 +271,44 @@ enum InternallyTaggedNoMissing {
 
     #[cbor(rename = 2)]
     V2(Order),
+}
+
+#[derive(Debug, Default, Clone, Hash, Eq, PartialEq, cbor::Decode, cbor::Encode)]
+struct ComplexMapKey {
+    aa: u8,
+    b: u8,
+}
+
+#[test]
+fn test_round_trip_complex_map_keys() {
+    let mut a: HashMap<ComplexMapKey, u8> = HashMap::new();
+    a.insert(ComplexMapKey { aa: 0x00, b: 0x02 }, 0);
+    a.insert(ComplexMapKey { aa: 0x01, b: 0x00 }, 0);
+    let enc = cbor::to_vec(a.clone());
+    assert_eq!(
+        enc,
+        vec![
+            0xA2, // map(2)
+            0xA2, // map(2)
+            0x61, // text(1)
+            0x62, // "b"
+            0x00, // unsigned(0)
+            0x62, // text(2)
+            0x61, 0x61, // "aa"
+            0x01, // unsigned(1)
+            0x00, // unsigned(0)
+            0xA2, // map(2)
+            0x61, // text(1)
+            0x62, // "b"
+            0x02, // unsigned(2)
+            0x62, // text(2)
+            0x61, 0x61, // "aa"
+            0x00, // unsigned(0)
+            0x00, // unsigned(0)
+        ],
+    );
+    let dec: HashMap<ComplexMapKey, u8> = cbor::from_slice(&enc).unwrap();
+    assert_eq!(a, dec);
 }
 
 #[test]

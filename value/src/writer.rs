@@ -79,16 +79,25 @@ impl<'a> Writer<'a> {
                     self.encode_cbor(el, remaining_depth.map(|d| d - 1))?;
                 }
             }
-            Value::Map(mut map) => {
+            Value::Map(map) => {
+                // Canonical ordering requires sorting by encoded keys, so encode them first.
+                let mut map: Vec<_> = map.into_iter().map(|(k, v)| {
+                    let mut encoded_key = Vec::new();
+                    let mut key_writer = Writer::new(&mut encoded_key);
+                    key_writer.encode_cbor(k, remaining_depth.map(|d| d - 1))?;
+                    Ok((encoded_key, v))
+                }).collect::<Result<_, _>>()?;
                 map.sort_by(|a, b| a.0.cmp(&b.0));
+
                 let map_len = map.len();
                 map.dedup_by(|a, b| a.0.eq(&b.0));
                 if map_len != map.len() {
                     return Err(EncoderError::DuplicateMapKey);
                 }
+
                 self.start_item(type_label, map_len as u64);
-                for (k, v) in map {
-                    self.encode_cbor(k, remaining_depth.map(|d| d - 1))?;
+                for (encoded_key, v) in map {
+                    self.encoded_cbor.extend(encoded_key);
                     self.encode_cbor(v, remaining_depth.map(|d| d - 1))?;
                 }
             }
