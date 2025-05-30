@@ -14,6 +14,7 @@ struct A {
     always: Option<bool>,
     #[cbor(rename = "different")]
     renamed: bool,
+    boxed: Box<B>,
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, cbor::Encode, cbor::Decode)]
@@ -283,13 +284,17 @@ fn test_round_trip_complex() {
         optional: None,
         always: None,
         renamed: false,
+        boxed: Box::new(B {
+            foo: 10,
+            bytes: b"box".to_vec(),
+        }),
     };
 
     let enc = cbor::to_vec(a.clone());
     assert_eq!(
         enc,
         vec![
-            0xA5, // map(5)
+            0xA6, // map(6)
             0x63, // text(3)
             0x62, 0x61, 0x72, // "bar"
             0x6B, // text(11)
@@ -297,6 +302,16 @@ fn test_round_trip_complex() {
             0x63, // text(3)
             0x66, 0x6F, 0x6F, // "foo"
             0x18, 0x2A, // unsigned(42)
+            0x65, // text(5)
+            0x62, 0x6F, 0x78, 0x65, 0x64, // "boxed"
+            0xA2, // map(2)
+            0x63, // text(3)
+            0x66, 0x6F, 0x6F, // "foo"
+            0x0A, // unsigned(10)
+            0x65, // text(5)
+            0x62, 0x79, 0x74, 0x65, 0x73, // "bytes"
+            0x43, // bytes(3)
+            0x62, 0x6F, 0x78, // "box"
             0x66, // text(6)
             0x61, 0x6C, 0x77, 0x61, 0x79, 0x73, // "always"
             0xF6, // primitive(22)
